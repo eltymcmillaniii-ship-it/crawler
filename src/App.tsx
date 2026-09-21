@@ -249,7 +249,15 @@ function Judge({gameId,characters,refresh}:{gameId:string;characters:Character[]
     setBusy(true);setMsg('')
     try{
       const {data,error}=await supabase.functions.invoke('dungeon-judge',{body:{gameId,event,tone:'unhinged',frequency:'balanced',characters:characters.map(c=>({id:c.id,name:c.name,level:c.level,stats:c.stats,health:[c.currentHealth,c.maxHealth],skills:c.skills,gear:Object.values(c.gear).filter(Boolean)}))}})
-      if(error)throw error
+      if(error){
+        let detail=error.message
+        const response=(error as any).context as Response | undefined
+        try{
+          const payload=await response?.clone().json()
+          if(payload?.error)detail=String(payload.error)
+        }catch{}
+        throw new Error(detail)
+      }
       if(data?.error)throw new Error(String(data.error))
       setVerdict(data)
     }catch(e){setMsg(e instanceof Error?e.message:'Judge failed')}finally{setBusy(false)}
