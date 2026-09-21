@@ -38,7 +38,10 @@ const schema = {
   required: ['should_reward','recipients','achievement','reward','reasoning_for_gm'],
 }
 
-type CharacterInput = { id?: string; name?: string }
+type CharacterInput = {
+  id?: string
+  name?: string
+}
 
 function fallbackVerdict(body: any) {
   const event = String(body?.event ?? '').trim()
@@ -81,7 +84,13 @@ function fallbackVerdict(body: any) {
           ? 'Technically terrible. Spiritually magnificent.'
           : 'You found a solution the Dungeon did not specifically forbid. Annoying.',
       },
-      reward: { kind: 'none', rarity: 'none', name: '', effect: '', quirk: '' },
+      reward: {
+        kind: 'none',
+        rarity: 'none',
+        name: '',
+        effect: '',
+        quirk: '',
+      },
       reasoning_for_gm: 'Fallback judgment used because the AI judge was unavailable. The event merited a flavor achievement but not a mechanical reward.',
     }
   }
@@ -90,7 +99,13 @@ function fallbackVerdict(body: any) {
     should_reward: false,
     recipients: [],
     achievement: null,
-    reward: { kind: 'none', rarity: 'none', name: '', effect: '', quirk: '' },
+    reward: {
+      kind: 'none',
+      rarity: 'none',
+      name: '',
+      effect: '',
+      quirk: '',
+    },
     reasoning_for_gm: 'Fallback judgment used because the AI judge was unavailable. Nothing in the event clearly justified a reward.',
   }
 }
@@ -125,6 +140,11 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_ANON_KEY')!,
       { global: { headers: { Authorization: authHeader } } },
+    )
+
+    const admin = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
 
     const { data: { user }, error: userError } = await sb.auth.getUser()
@@ -173,8 +193,18 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     } catch (aiError) {
-      console.error('Dungeon Judge AI error:', aiError instanceof Error ? aiError.message : String(aiError))
-      return new Response(JSON.stringify({ ...fallback, source: 'fallback' }), {
+      const fallbackReason = aiError instanceof Error ? aiError.message : String(aiError)
+      console.error('Dungeon Judge AI error:', fallbackReason)
+      try {
+        await admin.from('edge_function_errors').insert({
+          function_name: 'dungeon-judge',
+          game_id: body.gameId,
+          error_message: fallbackReason.slice(0, 2000),
+        })
+      } catch (logError) {
+        console.error('Could not persist Dungeon Judge diagnostic:', logError)
+      }
+      return new Response(JSON.stringify({ ...fallback, source: 'fallback', fallback_reason: fallbackReason }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
