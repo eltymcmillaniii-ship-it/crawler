@@ -41,3 +41,17 @@
 .player-portrait-empty{height:100%;width:100%;display:flex;flex-direction:column;gap:10px;align-items:center;justify-content:center;color:var(--muted)}
 .portrait-help{text-align:center;margin-top:8px}
 @media(max-width:850px){.crawler-layout{grid-template-columns:1fr}.portrait-panel{max-width:360px;width:100%;margin:0 auto}}
+
+.gm-roster-image{width:100%;height:100%;object-fit:cover;display:block}
+.roster-avatar{color:var(--muted);background:#11141a}
+.roster-copy{min-width:0;flex:1}
+.gm-profile-hero{display:grid;grid-template-columns:150px minmax(0,1fr) auto;gap:18px;align-items:center}
+.gm-profile-portrait{width:150px;aspect-ratio:4/5;border:1px solid var(--border);border-radius:14px;overflow:hidden;background:#11141a;display:flex;align-items:center;justify-content:center}
+.gm-profile-image{width:100%;height:100%;object-fit:cover;display:block}
+.gm-profile-empty{color:var(--muted)}
+.gm-profile-main{min-width:0}
+.gm-profile-main h2{margin-bottom:5px}
+.gm-profile-health{margin-top:14px}
+.gm-profile-actions{align-self:start}
+@media(max-width:800px){.gm-profile-hero{grid-template-columns:110px minmax(0,1fr)}.gm-profile-portrait{width:110px}.gm-profile-actions{grid-column:1/-1}.gm-profile-actions .button{width:100%}}
+@media(max-width:520px){.gm-profile-hero{grid-template-columns:82px minmax(0,1fr);gap:12px}.gm-profile-portrait{width:82px}}
