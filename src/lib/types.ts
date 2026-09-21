@@ -9,6 +9,7 @@ export type Item = {
   type: 'Weapon' | 'Armor' | 'Accessory' | 'Consumable' | 'Utility' | 'Quest' | 'AI Generated'
   slot?: GearSlot
   effect: string
+  coreValue: number
   quirk?: string
   quantity?: number
   tradeable?: boolean
