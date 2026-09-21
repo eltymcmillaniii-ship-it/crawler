@@ -276,6 +276,15 @@ function GM({gameId,characters,refresh}:{gameId:string;characters:Character[];re
   const [tab,setTab]=useState<'profiles'|'judge'>('profiles')
   const [msg,setMsg]=useState('')
   const [itemName,setItemName]=useState('')
+  const [itemRarity,setItemRarity]=useState<'B'|'S'|'G'>('B')
+  const [itemType,setItemType]=useState<'Weapon'|'Armor'|'Accessory'|'Consumable'|'Utility'|'Quest'>('Utility')
+  const [itemSlot,setItemSlot]=useState('')
+  const [itemCoreValue,setItemCoreValue]=useState(0)
+  const [itemEffect,setItemEffect]=useState('')
+  const [itemQuirk,setItemQuirk]=useState('')
+  const [itemQuantity,setItemQuantity]=useState(1)
+  const [skillName,setSkillName]=useState('')
+  const [skillLevel,setSkillLevel]=useState(1)
   const current=characters.find(c=>c.id===selected)||characters[0]
   useEffect(()=>{if(!selected&&characters[0])setSelected(characters[0].id)},[characters,selected])
   async function rpc(name:string,args:any){
