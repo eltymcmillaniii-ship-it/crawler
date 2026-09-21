@@ -1,7 +1,7 @@
 import type { Character, Item } from './types'
 
 let n = 1
-const item = (x: Omit<Item, 'id'>): Item => ({ ...x, id: `demo-item-${n++}` })
+const item = (x: Omit<Item, 'id' | 'coreValue'> & { coreValue?: number }): Item => ({ ...x, coreValue: x.coreValue ?? 0, id: `demo-item-${n++}` })
 
 const emptyGear = () => ({
   Head: null, Body: null, Hands: null, Feet: null,
