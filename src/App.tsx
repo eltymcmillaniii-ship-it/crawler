@@ -3,7 +3,7 @@ import { Brain, Gift, Package, Sparkles, Trophy, Users } from 'lucide-react'
 import type { Character, DungeonVerdict } from './lib/types'
 import { supabase, supabaseConfigured } from './lib/supabase'
 import {
-  applyDungeonVerdict, completeCharacterSetup, createGame, ensureAnonymousUser, joinGame,
+  applyDungeonVerdict, completeCharacterSetup, createGame, deleteGame, ensureAnonymousUser, joinGame,
   listMyGames, loadCharacters, openLootBox, persistCharacterDiff, subscribeToGame,
 } from './lib/live'
 import type { GameSummary } from './lib/live'
@@ -428,7 +428,22 @@ function Lobby({userId,games,reload,open}:{userId:string;games:GameSummary[];rel
   const [busy,setBusy]=useState(false)
   async function make(){setBusy(true);try{const r=await createGame(name);setMsg(`Game created. Join code: ${r.joinCode}`);const g=(await reload()).find(x=>x.id===r.gameId);if(g)await open(g)}catch(e){setMsg(e instanceof Error?e.message:'Create failed')}finally{setBusy(false)}}
   async function join(){setBusy(true);try{await joinGame(code);const list=await reload();const g=list.find(x=>x.joinCode===code.trim().toUpperCase());if(g)await open(g)}catch(e){setMsg(e instanceof Error?e.message:'Join failed')}finally{setBusy(false)}}
-  return <div className="app-shell"><header className="topbar"><div><h1>Crawler</h1><div className="muted">Multiplayer lobby</div></div><span className="pill">Device {userId.slice(0,8)}</span></header>{games.length>0&&<section className="panel pad"><h3>My Games</h3><div className="game-list">{games.map(g=><button className="game-card" key={g.id} onClick={()=>void open(g)}><div><strong>{g.name}</strong><div className="muted small">{g.role==='gm'?'GM':'Crawler'} · Floor {g.floorNumber}</div></div><span className="join-code">{g.joinCode}</span></button>)}</div></section>}<div className="two-col lobby-grid"><section className="panel pad"><h3>Create Game</h3><input value={name} onChange={e=>setName(e.target.value)}/><button className="button primary wide" disabled={busy} onClick={()=>void make()}>Create Game</button></section><section className="panel pad"><h3>Join Game</h3><input value={code} onChange={e=>setCode(e.target.value.toUpperCase())} placeholder="JOIN CODE"/><button className="button primary wide" disabled={busy} onClick={()=>void join()}>Join Game</button></section></div>{msg&&<div className="status-message">{msg}</div>}</div>
+  async function removeGame(g:GameSummary){
+    if(!g.isOwner)return
+    const confirmed=window.confirm(`Delete "${g.name}" permanently? This removes the group, every crawler, inventory item, achievement, loot box, trade, and Dungeon event in it. This cannot be undone.`)
+    if(!confirmed)return
+    setBusy(true);setMsg('')
+    try{
+      await deleteGame(g.id)
+      await reload()
+      setMsg(`${g.name} was permanently deleted.`)
+    }catch(e){
+      setMsg(e instanceof Error?e.message:'Could not delete group')
+    }finally{
+      setBusy(false)
+    }
+  }
+  return <div className="app-shell"><header className="topbar"><div><h1>Crawler</h1><div className="muted">Multiplayer lobby</div></div><span className="pill">Device {userId.slice(0,8)}</span></header>{games.length>0&&<section className="panel pad"><h3>My Games</h3><div className="game-list">{games.map(g=><div className="game-card-shell" key={g.id}><button className="game-card game-open-card" disabled={busy} onClick={()=>void open(g)}><div><strong>{g.name}</strong><div className="muted small">{g.isOwner?'Owner · ':g.role==='gm'?'GM · ':'Crawler · '}Floor {g.floorNumber}</div></div><span className="join-code">{g.joinCode}</span></button>{g.isOwner&&<button className="button danger-button game-delete-button" disabled={busy} onClick={()=>void removeGame(g)}>Delete Group</button>}</div>)}</div></section>}<div className="two-col lobby-grid"><section className="panel pad"><h3>Create Game</h3><input value={name} onChange={e=>setName(e.target.value)}/><button className="button primary wide" disabled={busy} onClick={()=>void make()}>Create Game</button></section><section className="panel pad"><h3>Join Game</h3><input value={code} onChange={e=>setCode(e.target.value.toUpperCase())} placeholder="JOIN CODE"/><button className="button primary wide" disabled={busy} onClick={()=>void join()}>Join Game</button></section></div>{msg&&<div className="status-message">{msg}</div>}</div>
 }
 
 export default function App(){
