@@ -4,7 +4,7 @@ import type { Character, DungeonVerdict } from './lib/types'
 import { supabase, supabaseConfigured } from './lib/supabase'
 import {
   applyDungeonVerdict, completeCharacterSetup, createGame, ensureAnonymousUser, joinGame,
-  listMyGames, loadCharacters, openLootBox, subscribeToGame,
+  listMyGames, loadCharacters, openLootBox, persistCharacterDiff, subscribeToGame,
 } from './lib/live'
 import type { GameSummary } from './lib/live'
 
@@ -163,6 +163,37 @@ function Player({character,refresh}:{character:Character;refresh:()=>Promise<voi
   const [tab,setTab]=useState<'crawler'|'inventory'|'loot'|'achievements'>('crawler')
   const [msg,setMsg]=useState('')
   const [busy,setBusy]=useState(false)
+  const [uploadingPortrait,setUploadingPortrait]=useState(false)
+
+  async function uploadPortrait(file:File){
+    if(!file)return
+    setMsg('')
+    if(!['image/jpeg','image/png','image/webp'].includes(file.type)){
+      setMsg('Use a JPG, PNG, or WebP image.')
+      return
+    }
+    if(file.size>5*1024*1024){
+      setMsg('Player images must be 5 MB or smaller.')
+      return
+    }
+    setUploadingPortrait(true)
+    try{
+      const dataUrl=await new Promise<string>((resolve,reject)=>{
+        const reader=new FileReader()
+        reader.onload=()=>resolve(String(reader.result))
+        reader.onerror=()=>reject(new Error('Could not read that image.'))
+        reader.readAsDataURL(file)
+      })
+      await persistCharacterDiff(character,{...character,portraitUrl:dataUrl},character.userId)
+      await refresh()
+      setMsg('Player image updated.')
+    }catch(e){
+      setMsg(e instanceof Error?e.message:'Could not upload player image')
+    }finally{
+      setUploadingPortrait(false)
+    }
+  }
+
   async function spend(stat:string){
     if(!supabase)return
     setBusy(true);setMsg('')
@@ -179,7 +210,29 @@ function Player({character,refresh}:{character:Character;refresh:()=>Promise<voi
     {character.unspentStatPoints>0&&<div className="live-banner"><strong>LEVEL UP!</strong> You have {character.unspentStatPoints} stat point{character.unspentStatPoints===1?'':'s'} to spend.</div>}
     <nav className="tabs"><button className={`button ${tab==='crawler'?'primary':''}`} onClick={()=>setTab('crawler')}><Users size={16}/>Crawler</button><button className={`button ${tab==='inventory'?'primary':''}`} onClick={()=>setTab('inventory')}><Package size={16}/>Inventory</button><button className={`button ${tab==='loot'?'primary':''}`} onClick={()=>setTab('loot')}><Gift size={16}/>Loot</button><button className={`button ${tab==='achievements'?'primary':''}`} onClick={()=>setTab('achievements')}><Trophy size={16}/>Achievements</button></nav>
     {msg&&<div className="status-message">{msg}</div>}
-    {tab==='crawler'&&<div className="two-col"><section className="panel pad"><h3><Brain size={18}/>Stats</h3><div className="stats-grid">{stats.map(s=><div className="stat" key={s}><span>{s}</span><strong>+{character.stats[s]}</strong>{character.unspentStatPoints>0&&<button className="button" disabled={busy} onClick={()=>void spend(s)}>+1</button>}</div>)}</div><h3>Conditions</h3><div className="chips">{character.conditions.length?character.conditions.map(x=><span className="pill" key={x}>{x}</span>):<span className="muted">None</span>}</div></section><section className="panel pad"><h3>Skills</h3>{character.skills.map(s=><div className="line-row" key={s.name}><span>{s.name}</span><strong>+{s.rank}</strong></div>)}<h3>Perks</h3>{character.perks.length?character.perks.map(x=><div className="tag-row" key={x}>{x}</div>):<div className="muted">None yet.</div>}</section></div>}
+    {tab==='crawler'&&<div className="crawler-layout">
+      <section className="panel pad portrait-panel">
+        <h3>Player Image</h3>
+        <div className="player-portrait-frame">
+          {character.portraitUrl
+            ? <img className="player-portrait-image" src={character.portraitUrl} alt={`${character.name} portrait`}/>
+            : <div className="player-portrait-empty"><Users size={52}/><span>No image yet</span></div>}
+        </div>
+        <label className="button primary wide file-button">
+          {uploadingPortrait?'Uploading…':character.portraitUrl?'Change Player Image':'Upload Player Image'}
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            disabled={uploadingPortrait}
+            onChange={e=>{const file=e.target.files?.[0];if(file)void uploadPortrait(file);e.currentTarget.value=''}}
+          />
+        </label>
+        <div className="muted small portrait-help">JPG, PNG, or WebP · max 5 MB</div>
+      </section>
+      <div className="crawler-details">
+        <div className="two-col"><section className="panel pad"><h3><Brain size={18}/>Stats</h3><div className="stats-grid">{stats.map(s=><div className="stat" key={s}><span>{s}</span><strong>+{character.stats[s]}</strong>{character.unspentStatPoints>0&&<button className="button" disabled={busy} onClick={()=>void spend(s)}>+1</button>}</div>)}</div><h3>Conditions</h3><div className="chips">{character.conditions.length?character.conditions.map(x=><span className="pill" key={x}>{x}</span>):<span className="muted">None</span>}</div></section><section className="panel pad"><h3>Skills</h3>{character.skills.map(s=><div className="line-row" key={s.name}><span>{s.name}</span><strong>+{s.rank}</strong></div>)}<h3>Perks</h3>{character.perks.length?character.perks.map(x=><div className="tag-row" key={x}>{x}</div>):<div className="muted">None yet.</div>}</section></div>
+      </div>
+    </div>}
     {tab==='inventory'&&<section className="panel pad"><h3>Backpack</h3><div className="card-grid">{character.inventory.length?character.inventory.map(i=><div className={`item-card rarity-${i.rarity}`} key={i.id}><strong>{i.name}</strong><div className="muted small">{i.type}{(i.quantity??1)>1?` ×${i.quantity}`:''}</div><div>{i.effect}</div>{i.quirk&&<div className="muted small">Quirk: {i.quirk}</div>}</div>):<div className="muted">Empty.</div>}</div><h3>Equipped Gear</h3><div className="card-grid">{Object.entries(character.gear).map(([slot,i])=><div className="item-card" key={slot}><div className="gear-label">{slot}</div><strong>{i?.name??'Empty'}</strong>{i&&<div className="muted small">{i.effect}</div>}</div>)}</div></section>}
     {tab==='loot'&&<section className="panel pad"><h3>Unopened Loot Boxes</h3><div className="card-grid">{character.boxes.length?character.boxes.map(b=><div className={`item-card rarity-${b.rarity}`} key={b.id}><strong>🎁 {b.name}</strong><button className="button primary wide" disabled={busy} onClick={()=>void openBox(b.id)}>Open Box</button></div>):<div className="muted">No unopened boxes.</div>}</div></section>}
     {tab==='achievements'&&<section className="panel pad"><h3>Achievements</h3>{character.achievements.length?character.achievements.map(a=><div className="tag-row" key={a.id}>🏆 <strong>{a.name}</strong><div className="muted small">{a.commentary}</div></div>):<div className="muted">None yet.</div>}</section>}
