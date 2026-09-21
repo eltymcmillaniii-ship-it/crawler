@@ -74,3 +74,6 @@
 .rarity-button-S{border-color:var(--silver)!important}
 .rarity-button-G{border-color:var(--gold)!important}
 @media(max-width:520px){.gm-item-form,.gm-add-skill{grid-template-columns:1fr}.gm-form-wide{grid-column:auto}.gm-item-heading{flex-direction:column}}
+
+.gm-item-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:10px}
+.gm-item-actions strong{min-width:24px;text-align:center}
