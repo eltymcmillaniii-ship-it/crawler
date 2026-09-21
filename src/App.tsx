@@ -366,7 +366,51 @@ function GM({gameId,characters,refresh}:{gameId:string;characters:Character[];re
         <div className="gm-profile-actions"><button className="button danger-button" onClick={()=>void deletePlayer(current)}>Delete Player</button></div>
       </section>
       <section className="panel pad"><div className="quick-actions"><button className="button primary" onClick={()=>void rpc('gm_level_up',{p_character_id:current.id,p_levels:1,p_points_per_level:1})}>Level Up +1</button><button className="button" onClick={()=>void supabase?.from('characters').update({current_health:Math.max(0,current.currentHealth-1)}).eq('id',current.id).then(()=>refresh())}>−1 Health</button><button className="button" onClick={()=>void supabase?.from('characters').update({current_health:Math.min(current.maxHealth,current.currentHealth+1)}).eq('id',current.id).then(()=>refresh())}>+1 Health</button></div><div className="muted small">Unspent stat points: {current.unspentStatPoints}</div><div className="stats-grid">{stats.map(s=><div className="stat" key={s}><span>{s}</span><strong>+{current.stats[s]}</strong><div className="inline-actions"><button className="button" onClick={()=>void rpc('gm_adjust_stat',{p_character_id:current.id,p_stat:s,p_delta:-1})}>−</button><button className="button" onClick={()=>void rpc('gm_adjust_stat',{p_character_id:current.id,p_stat:s,p_delta:1})}>+</button></div></div>)}</div></section>
-      <div className="two-col"><section className="panel pad"><h3>Inventory</h3>{current.inventory.length?current.inventory.map(i=><div className="tag-row" key={i.id}><strong>{i.name}</strong><div className="muted small">{i.effect}</div><button className="button" onClick={()=>void rpc('gm_remove_character_item',{p_character_item_id:i.id})}>Remove</button></div>):<div className="muted">Empty.</div>}</section><section className="panel pad"><h3>Grant Item</h3><label>Item name<input value={itemName} onChange={e=>setItemName(e.target.value)} placeholder="Goblin Cleaver"/></label><button className="button primary" disabled={!itemName.trim()} onClick={()=>void rpc('gm_grant_item',{p_character_id:current.id,p_name:itemName,p_rarity:'B',p_item_type:'Utility',p_slot:null,p_effect:'GM granted item',p_quirk:'',p_quantity:1}).then(()=>setItemName(''))}>Add Bronze Item</button><h3>Skills</h3>{current.skills.map(s=><div className="line-row" key={s.name}><span>{s.name}</span><strong>+{s.rank}</strong></div>)}</section></div>
+      <div className="two-col">
+        <section className="panel pad">
+          <h3>Inventory</h3>
+          {current.inventory.length?current.inventory.map(i=><div className={`tag-row gm-inventory-item rarity-${i.rarity}`} key={i.id}>
+            <div className="gm-item-heading"><strong>{i.name}</strong><span className="pill">{i.rarity==='B'?'Bronze':i.rarity==='S'?'Silver':'Gold'} · Core {i.coreValue}</span></div>
+            <div className="muted small">{i.type}{(i.quantity??1)>1?` ×${i.quantity}`:''}</div>
+            {i.effect&&<div className="small gm-item-copy">{i.effect}</div>}
+            {i.quirk&&<div className="muted small">Quirk: {i.quirk}</div>}
+            <button className="button" onClick={()=>void rpc('gm_remove_character_item',{p_character_item_id:i.id})}>Remove</button>
+          </div>):<div className="muted">Empty.</div>}
+        </section>
+
+        <section className="panel pad">
+          <h3>Grant Item</h3>
+          <div className="gm-item-form">
+            <label className="gm-form-wide">Item name<input value={itemName} onChange={e=>setItemName(e.target.value)} placeholder="Goblin Cleaver"/></label>
+            <label>Rarity<select value={itemRarity} onChange={e=>setItemRarity(e.target.value as 'B'|'S'|'G')}><option value="B">Bronze</option><option value="S">Silver</option><option value="G">Gold</option></select></label>
+            <label>Core value<input type="number" min={0} max={999} value={itemCoreValue} onChange={e=>setItemCoreValue(Number(e.target.value))}/></label>
+            <label>Item type<select value={itemType} onChange={e=>setItemType(e.target.value as typeof itemType)}><option>Weapon</option><option>Armor</option><option>Accessory</option><option>Consumable</option><option>Utility</option><option>Quest</option></select></label>
+            <label>Equipment slot<select value={itemSlot} onChange={e=>setItemSlot(e.target.value)}><option value="">None</option><option>Head</option><option>Body</option><option>Hands</option><option>Feet</option><option>Weapon 1</option><option>Weapon 2</option><option>Accessory 1</option><option>Accessory 2</option></select></label>
+            <label>Quantity<input type="number" min={1} max={99} value={itemQuantity} onChange={e=>setItemQuantity(Number(e.target.value))}/></label>
+            <label className="gm-form-wide">Effect<textarea rows={3} value={itemEffect} onChange={e=>setItemEffect(e.target.value)} placeholder="What does it actually do?"/></label>
+            <label className="gm-form-wide">Quirk<input value={itemQuirk} onChange={e=>setItemQuirk(e.target.value)} placeholder="Optional weirdness"/></label>
+          </div>
+          <button className={`button primary wide rarity-button-${itemRarity}`} disabled={!itemName.trim()} onClick={()=>void grantItem()}>Grant {itemRarity==='B'?'Bronze':itemRarity==='S'?'Silver':'Gold'} Item</button>
+
+          <h3>Skills</h3>
+          <div className="gm-skill-list">
+            {current.skills.length?current.skills.map(s=><div className="gm-skill-row" key={s.name}>
+              <span>{s.name}</span>
+              <div className="skill-stepper">
+                <button className="button stat-step" onClick={()=>void rpc('gm_adjust_skill',{p_character_id:current.id,p_name:s.name,p_delta:-1})}>−</button>
+                <strong>+{s.rank}</strong>
+                <button className="button stat-step" onClick={()=>void rpc('gm_adjust_skill',{p_character_id:current.id,p_name:s.name,p_delta:1})}>+</button>
+              </div>
+            </div>):<div className="muted">No skills yet.</div>}
+          </div>
+          <div className="gm-add-skill">
+            <label>New skill<input value={skillName} onChange={e=>setSkillName(e.target.value)} placeholder="Lockpicking"/></label>
+            <label>Starting level<input type="number" min={1} max={999} value={skillLevel} onChange={e=>setSkillLevel(Number(e.target.value))}/></label>
+          </div>
+          <button className="button wide" disabled={!skillName.trim()} onClick={()=>void addSkill()}>Add Skill</button>
+          <div className="muted small gm-tool-note">Reducing a skill below +1 removes it.</div>
+        </section>
+      </div>
     </main></div>}
   </>
 }
