@@ -288,11 +288,49 @@ function GM({gameId,characters,refresh}:{gameId:string;characters:Character[];re
   const current=characters.find(c=>c.id===selected)||characters[0]
   useEffect(()=>{if(!selected&&characters[0])setSelected(characters[0].id)},[characters,selected])
   async function rpc(name:string,args:any){
-    if(!supabase)return
+    if(!supabase)return false
     setMsg('')
     const {error}=await supabase.rpc(name,args)
-    if(error){setMsg(error.message);return}
+    if(error){setMsg(error.message);return false}
     await refresh()
+    return true
+  }
+
+  async function grantItem(){
+    if(!current||!itemName.trim())return
+    const ok=await rpc('gm_grant_item',{
+      p_character_id:current.id,
+      p_name:itemName.trim(),
+      p_rarity:itemRarity,
+      p_item_type:itemType,
+      p_slot:itemSlot||null,
+      p_effect:itemEffect.trim(),
+      p_quirk:itemQuirk.trim(),
+      p_core_value:Math.max(0,Math.min(999,itemCoreValue||0)),
+      p_quantity:Math.max(1,Math.min(99,itemQuantity||1)),
+    })
+    if(ok){
+      setItemName('')
+      setItemCoreValue(0)
+      setItemEffect('')
+      setItemQuirk('')
+      setItemQuantity(1)
+      setMsg(`${itemRarity==='B'?'Bronze':itemRarity==='S'?'Silver':'Gold'} item granted to ${current.name}.`)
+    }
+  }
+
+  async function addSkill(){
+    if(!current||!skillName.trim())return
+    const ok=await rpc('gm_set_skill',{
+      p_character_id:current.id,
+      p_name:skillName.trim(),
+      p_rank:Math.max(1,Math.min(999,skillLevel||1)),
+    })
+    if(ok){
+      setSkillName('')
+      setSkillLevel(1)
+      setMsg(`Skill added to ${current.name}.`)
+    }
   }
   async function deletePlayer(character:Character){
     if(!supabase)return
