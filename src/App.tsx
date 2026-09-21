@@ -19,30 +19,106 @@ function Hearts({c,m}:{c:number;m:number}) {
   return <div className="hearts">{Array.from({length:m},(_,i)=><span key={i} className={i<c?'heart':'heart empty'}>♥</span>)}</div>
 }
 
+type GeneratedClass = {
+  name: string
+  tagline: string
+  starting_skill: string
+  dungeon_note: string
+}
+
 function Setup({character,onDone}:{character:Character;onDone:()=>Promise<void>}) {
   const [name,setName]=useState('')
-  const [bg,setBg]=useState('Nurse')
+  const [description,setDescription]=useState('')
+  const [classOptions,setClassOptions]=useState<GeneratedClass[]>([])
+  const [selectedClassName,setSelectedClassName]=useState('')
   const [vals,setVals]=useState<Character['stats']>({Strength:2,Dexterity:1,Intelligence:1,Constitution:0,Charisma:0})
   const [busy,setBusy]=useState(false)
   const [err,setErr]=useState('')
-  const skill=backgrounds.find(x=>x[0]===bg)?.[1] || 'General Competence'
+  const selectedClass=classOptions.find(x=>x.name===selectedClassName)
   const v=Object.values(vals)
-  const valid=v.filter(x=>x===2).length===1&&v.filter(x=>x===1).length===2&&v.filter(x=>x===0).length===2&&!!name.trim()
-  async function save(){
-    if(!supabase||!valid)return
+  const statsValid=v.filter(x=>x===2).length===1&&v.filter(x=>x===1).length===2&&v.filter(x=>x===0).length===2
+  const valid=statsValid&&!!name.trim()&&!!selectedClass
+
+  async function generateClasses(){
+    if(!supabase||description.trim().length<12)return
     setBusy(true);setErr('')
     try{
-      await completeCharacterSetup({characterId:character.id,name,background:bg,stats:vals,startingSkill:skill})
+      const {data,error}=await supabase.functions.invoke('generate-classes',{body:{characterId:character.id,description:description.trim()}})
+      if(error)throw error
+      if(data?.error)throw new Error(String(data.error))
+      const options=Array.isArray(data?.classes)?data.classes as GeneratedClass[]:[]
+      if(options.length!==4)throw new Error('The Dungeon failed to produce four questionable life choices.')
+      setClassOptions(options)
+      setSelectedClassName('')
+    }catch(e){setErr(e instanceof Error?e.message:'Could not generate classes')}finally{setBusy(false)}
+  }
+
+  async function save(){
+    if(!supabase||!valid||!selectedClass)return
+    setBusy(true);setErr('')
+    try{
+      await completeCharacterSetup({
+        characterId:character.id,
+        name,
+        background:selectedClass.name,
+        stats:vals,
+        startingSkill:selectedClass.starting_skill,
+      })
       await onDone()
     }catch(e){setErr(e instanceof Error?e.message:'Could not create crawler')}finally{setBusy(false)}
   }
+
   return <div className="creation-shell">
-    <section className="panel pad"><div className="eyebrow">Welcome to the Dungeon</div><h2>Create Your Crawler</h2><p className="muted">Choose who you were before all of this became a terrible idea.</p></section>
+    <section className="panel pad">
+      <div className="eyebrow">Welcome to the Dungeon</div>
+      <h2>Create Your Crawler</h2>
+      <p className="muted">Tell the Dungeon who you are. It will decide what kind of terrible career path you deserve.</p>
+    </section>
+
     <div className="two-col">
-      <section className="panel pad"><h3>Identity</h3><label>Name<input value={name} onChange={e=>setName(e.target.value)} placeholder="Crawler name"/></label><label>Background<select value={bg} onChange={e=>setBg(e.target.value)}>{backgrounds.map(([b,s])=><option key={b} value={b}>{b} — {s}</option>)}</select></label><div className="surface-note">Starting skill: <strong>{skill}</strong></div></section>
-      <section className="panel pad"><h3>Core Stats</h3><p className="muted small">Use exactly one +2, two +1s, and two 0s.</p><div className="creation-stats">{stats.map(s=><label key={s}><span>{s}</span><select value={vals[s]} onChange={e=>setVals(x=>({...x,[s]:Number(e.target.value)}))}><option value={2}>+2</option><option value={1}>+1</option><option value={0}>0</option></select></label>)}</div><div className="surface-note">Starting health: <strong>{6+vals.Constitution} ♥</strong></div></section>
+      <section className="panel pad">
+        <h3>Who Are You?</h3>
+        <label>Name<input value={name} onChange={e=>setName(e.target.value)} placeholder="Crawler name"/></label>
+        <label>
+          Describe your character
+          <textarea
+            className="character-description"
+            rows={7}
+            value={description}
+            maxLength={1200}
+            onChange={e=>setDescription(e.target.value)}
+            placeholder="Example: I’m a burned-out ER nurse who grew up hunting, can fix almost anything with duct tape, hates authority, and talks way too much when nervous."
+          />
+        </label>
+        <div className="muted small">Real job, hobbies, bad habits, weird talents, personality — give the Dungeon ammunition.</div>
+        <button className="button primary wide" disabled={busy||description.trim().length<12} onClick={()=>void generateClasses()}>
+          {busy?'The Dungeon Is Judging You…':classOptions.length?'Generate New Class Options':'Let the Dungeon Pick My Classes'}
+        </button>
+      </section>
+
+      <section className="panel pad">
+        <h3>Core Stats</h3>
+        <p className="muted small">Use exactly one +2, two +1s, and two 0s.</p>
+        <div className="creation-stats">
+          {stats.map(s=><label key={s}><span>{s}</span><select value={vals[s]} onChange={e=>setVals(x=>({...x,[s]:Number(e.target.value)}))}><option value={2}>+2</option><option value={1}>+1</option><option value={0}>0</option></select></label>)}
+        </div>
+        <div className="surface-note">Starting health: <strong>{6+vals.Constitution} ♥</strong></div>
+      </section>
     </div>
-    <button className="button primary" disabled={!valid||busy} onClick={()=>void save()}>{busy?'Entering…':'Enter the Dungeon'}</button>
+
+    <section className="panel pad">
+      <div className="section-title"><div><div className="eyebrow">Dungeon-Assigned Career Counseling</div><h3>Choose Your Class</h3></div>{classOptions.length>0&&<span className="pill">Pick 1 of 4</span>}</div>
+      {classOptions.length===0
+        ? <div className="class-empty">Describe yourself above and the Dungeon will manufacture four deeply questionable class options.</div>
+        : <div className="class-options">{classOptions.map(option=><button type="button" key={option.name} className={`class-option ${selectedClassName===option.name?'selected':''}`} onClick={()=>setSelectedClassName(option.name)}>
+            <div className="class-option-top"><strong>{option.name}</strong>{selectedClassName===option.name&&<span className="pill">Selected</span>}</div>
+            <div className="class-tagline">{option.tagline}</div>
+            <div className="class-skill"><span>Starting Skill</span><strong>{option.starting_skill}</strong></div>
+            <div className="dungeon-note">Dungeon AI: “{option.dungeon_note}”</div>
+          </button>)}</div>}
+    </section>
+
+    <button className="button primary" disabled={!valid||busy} onClick={()=>void save()}>{busy?'Entering…':selectedClass?`Enter as ${selectedClass.name}`:'Choose a Class to Enter the Dungeon'}</button>
     {err&&<div className="error-banner">{err}</div>}
   </div>
 }
