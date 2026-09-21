@@ -44,7 +44,15 @@ function Setup({character,onDone}:{character:Character;onDone:()=>Promise<void>}
     setBusy(true);setErr('')
     try{
       const {data,error}=await supabase.functions.invoke('generate-classes',{body:{characterId:character.id,description:description.trim()}})
-      if(error)throw error
+      if(error){
+        let detail=error.message
+        const response=(error as any).context as Response | undefined
+        try{
+          const payload=await response?.clone().json()
+          if(payload?.error)detail=String(payload.error)
+        }catch{}
+        throw new Error(detail)
+      }
       if(data?.error)throw new Error(String(data.error))
       const options=Array.isArray(data?.classes)?data.classes as GeneratedClass[]:[]
       if(options.length!==4)throw new Error('The Dungeon failed to produce four questionable life choices.')
