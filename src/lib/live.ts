@@ -9,6 +9,7 @@ export type GameSummary = {
   floorNumber: number
   role: Role
   joinedAt: string
+  isOwner: boolean
 }
 
 function client() {
@@ -31,7 +32,7 @@ export async function listMyGames(userId: string): Promise<GameSummary[]> {
   const sb = client()
   const { data, error } = await sb
     .from('game_members')
-    .select('game_id,role,joined_at,games(id,name,join_code,floor_number)')
+    .select('game_id,role,joined_at,games(id,name,join_code,floor_number,created_by)')
     .eq('user_id', userId)
     .order('joined_at', { ascending: false })
   if (error) throw error
@@ -45,6 +46,7 @@ export async function listMyGames(userId: string): Promise<GameSummary[]> {
       floorNumber: Number(game.floor_number ?? 1),
       role: row.role as Role,
       joinedAt: String(row.joined_at ?? ''),
+      isOwner: String(game.created_by ?? '') === userId,
     }]
   })
 }
@@ -56,6 +58,12 @@ export async function createGame(name: string): Promise<{ gameId: string; joinCo
   const row = Array.isArray(data) ? data[0] : data
   if (!row?.game_id) throw new Error('Game creation did not return a game ID.')
   return { gameId: String(row.game_id), joinCode: String(row.join_code) }
+}
+
+export async function deleteGame(gameId: string) {
+  const sb = client()
+  const { error } = await sb.rpc('delete_game', { p_game_id: gameId })
+  if (error) throw error
 }
 
 export async function joinGame(joinCode: string, characterName = 'Unnamed Crawler'): Promise<string> {
