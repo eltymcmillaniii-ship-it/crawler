@@ -55,3 +55,22 @@
 .gm-profile-actions{align-self:start}
 @media(max-width:800px){.gm-profile-hero{grid-template-columns:110px minmax(0,1fr)}.gm-profile-portrait{width:110px}.gm-profile-actions{grid-column:1/-1}.gm-profile-actions .button{width:100%}}
 @media(max-width:520px){.gm-profile-hero{grid-template-columns:82px minmax(0,1fr);gap:12px}.gm-profile-portrait{width:82px}}
+
+.gm-item-form{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px}
+.gm-item-form label{margin:0!important}
+.gm-form-wide{grid-column:1/-1}
+.gm-item-form textarea{width:100%;resize:vertical}
+.gm-item-heading{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.gm-item-copy{margin:8px 0}
+.gm-inventory-item{border-left-width:4px}
+.gm-skill-list{display:flex;flex-direction:column;gap:8px}
+.gm-skill-row{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:9px 10px}
+.skill-stepper{display:flex;align-items:center;gap:8px}
+.skill-stepper strong{min-width:30px;text-align:center}
+.gm-add-skill{display:grid;grid-template-columns:minmax(0,1fr) 120px;gap:10px;margin-top:12px}
+.gm-add-skill label{margin:0!important}
+.gm-tool-note{margin-top:8px;text-align:center}
+.rarity-button-B{border-color:var(--bronze)!important}
+.rarity-button-S{border-color:var(--silver)!important}
+.rarity-button-G{border-color:var(--gold)!important}
+@media(max-width:520px){.gm-item-form,.gm-add-skill{grid-template-columns:1fr}.gm-form-wide{grid-column:auto}.gm-item-heading{flex-direction:column}}
