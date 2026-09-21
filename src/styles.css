@@ -32,3 +32,12 @@
 .stat-stepper strong{min-width:28px;font-size:1.08rem}
 .stat-step{min-height:34px!important;width:34px;padding:4px!important;border-radius:9px!important}
 @media(max-width:520px){.stat-budget{align-items:flex-start;flex-direction:column}}
+
+.crawler-layout{display:grid;grid-template-columns:260px minmax(0,1fr);gap:14px}
+.crawler-details{min-width:0}
+.portrait-panel{align-self:start}
+.player-portrait-frame{aspect-ratio:4/5;border:1px solid var(--border);border-radius:14px;overflow:hidden;background:#11141a;display:flex;align-items:center;justify-content:center}
+.player-portrait-image{width:100%;height:100%;object-fit:cover;display:block}
+.player-portrait-empty{height:100%;width:100%;display:flex;flex-direction:column;gap:10px;align-items:center;justify-content:center;color:var(--muted)}
+.portrait-help{text-align:center;margin-top:8px}
+@media(max-width:850px){.crawler-layout{grid-template-columns:1fr}.portrait-panel{max-width:360px;width:100%;margin:0 auto}}
