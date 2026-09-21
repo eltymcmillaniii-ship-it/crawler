@@ -112,13 +112,24 @@ function GM({gameId,characters,refresh}:{gameId:string;characters:Character[];re
     if(error){setMsg(error.message);return}
     await refresh()
   }
+  async function deletePlayer(character:Character){
+    if(!supabase)return
+    const confirmed=window.confirm(`Remove ${character.name} from this game? This permanently deletes their crawler, inventory, achievements, loot boxes, and trade history for this game.`)
+    if(!confirmed)return
+    setMsg('')
+    const {error}=await supabase.rpc('gm_delete_player',{p_character_id:character.id})
+    if(error){setMsg(error.message);return}
+    setSelected('')
+    await refresh()
+    setMsg(`${character.name} was removed from the game.`)
+  }
   if(!current&&tab==='profiles')return <section className="panel pad"><h3>Waiting for crawlers</h3><p className="muted">Share the join code. Profiles appear here automatically.</p></section>
   return <>
     <nav className="tabs"><button className={`button ${tab==='profiles'?'primary':''}`} onClick={()=>setTab('profiles')}><Users size={16}/>Party Profiles</button><button className={`button ${tab==='judge'?'primary':''}`} onClick={()=>setTab('judge')}><Sparkles size={16}/>Dungeon Judge</button></nav>
     {msg&&<div className="status-message">{msg}</div>}
     {tab==='judge'&&<Judge gameId={gameId} characters={characters} refresh={refresh}/>}
     {tab==='profiles'&&current&&<div className="gm-layout"><aside className="panel pad"><h3>Party</h3>{characters.map(c=><button className={`roster-card ${current.id===c.id?'selected':''}`} key={c.id} onClick={()=>setSelected(c.id)}><div><strong>{c.name}</strong><div className="muted small">Level {c.level} · {c.background}</div><Hearts c={c.currentHealth} m={c.maxHealth}/></div></button>)}</aside><main className="profile-stack">
-      <section className="panel pad profile-title"><div><h2>{current.name}</h2><div className="muted">Level {current.level} · {current.background}</div></div><Hearts c={current.currentHealth} m={current.maxHealth}/></section>
+      <section className="panel pad profile-title"><div><h2>{current.name}</h2><div className="muted">Level {current.level} · {current.background}</div></div><div><Hearts c={current.currentHealth} m={current.maxHealth}/><button className="button danger-button" onClick={()=>void deletePlayer(current)}>Delete Player</button></div></section>
       <section className="panel pad"><div className="quick-actions"><button className="button primary" onClick={()=>void rpc('gm_level_up',{p_character_id:current.id,p_levels:1,p_points_per_level:1})}>Level Up +1</button><button className="button" onClick={()=>void supabase?.from('characters').update({current_health:Math.max(0,current.currentHealth-1)}).eq('id',current.id).then(()=>refresh())}>−1 Health</button><button className="button" onClick={()=>void supabase?.from('characters').update({current_health:Math.min(current.maxHealth,current.currentHealth+1)}).eq('id',current.id).then(()=>refresh())}>+1 Health</button></div><div className="muted small">Unspent stat points: {current.unspentStatPoints}</div><div className="stats-grid">{stats.map(s=><div className="stat" key={s}><span>{s}</span><strong>+{current.stats[s]}</strong><div className="inline-actions"><button className="button" onClick={()=>void rpc('gm_adjust_stat',{p_character_id:current.id,p_stat:s,p_delta:-1})}>−</button><button className="button" onClick={()=>void rpc('gm_adjust_stat',{p_character_id:current.id,p_stat:s,p_delta:1})}>+</button></div></div>)}</div></section>
       <div className="two-col"><section className="panel pad"><h3>Inventory</h3>{current.inventory.length?current.inventory.map(i=><div className="tag-row" key={i.id}><strong>{i.name}</strong><div className="muted small">{i.effect}</div><button className="button" onClick={()=>void rpc('gm_remove_character_item',{p_character_item_id:i.id})}>Remove</button></div>):<div className="muted">Empty.</div>}</section><section className="panel pad"><h3>Grant Item</h3><label>Item name<input value={itemName} onChange={e=>setItemName(e.target.value)} placeholder="Goblin Cleaver"/></label><button className="button primary" disabled={!itemName.trim()} onClick={()=>void rpc('gm_grant_item',{p_character_id:current.id,p_name:itemName,p_rarity:'B',p_item_type:'Utility',p_slot:null,p_effect:'GM granted item',p_quirk:'',p_quantity:1}).then(()=>setItemName(''))}>Add Bronze Item</button><h3>Skills</h3>{current.skills.map(s=><div className="line-row" key={s.name}><span>{s.name}</span><strong>+{s.rank}</strong></div>)}</section></div>
     </main></div>}
