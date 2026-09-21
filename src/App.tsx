@@ -9,12 +9,6 @@ import {
 import type { GameSummary } from './lib/live'
 
 const stats = ['Strength','Dexterity','Intelligence','Constitution','Charisma'] as const
-const backgrounds = [
-  ['Nurse','First Aid'],['Mechanic','Mechanical Repair'],['Teacher','Crowd Control'],
-  ['Salesperson','Bullshitting'],['Bartender','People Reading'],['Hunter','Tracking'],
-  ['Ranch Hand','Animal Handling'],['IT / Engineer','Technical Troubleshooting'],
-] as const
-
 function Hearts({c,m}:{c:number;m:number}) {
   return <div className="hearts">{Array.from({length:m},(_,i)=><span key={i} className={i<c?'heart':'heart empty'}>♥</span>)}</div>
 }
@@ -31,13 +25,23 @@ function Setup({character,onDone}:{character:Character;onDone:()=>Promise<void>}
   const [description,setDescription]=useState('')
   const [classOptions,setClassOptions]=useState<GeneratedClass[]>([])
   const [selectedClassName,setSelectedClassName]=useState('')
-  const [vals,setVals]=useState<Character['stats']>({Strength:2,Dexterity:1,Intelligence:1,Constitution:0,Charisma:0})
+  const [vals,setVals]=useState<Character['stats']>({Strength:0,Dexterity:0,Intelligence:0,Constitution:0,Charisma:0})
   const [busy,setBusy]=useState(false)
   const [err,setErr]=useState('')
   const selectedClass=classOptions.find(x=>x.name===selectedClassName)
-  const v=Object.values(vals)
-  const statsValid=v.filter(x=>x===2).length===1&&v.filter(x=>x===1).length===2&&v.filter(x=>x===0).length===2
+  const statTotal=Object.values(vals).reduce((sum,value)=>sum+value,0)
+  const statsValid=statTotal===8&&Object.values(vals).every(value=>Number.isInteger(value)&&value>=0)
   const valid=statsValid&&!!name.trim()&&!!selectedClass
+
+  function adjustStat(stat:(typeof stats)[number],delta:number){
+    setVals(current=>{
+      const nextValue=current[stat]+delta
+      const currentTotal=Object.values(current).reduce((sum,value)=>sum+value,0)
+      if(nextValue<0)return current
+      if(delta>0&&currentTotal>=8)return current
+      return {...current,[stat]:nextValue}
+    })
+  }
 
   async function generateClasses(){
     if(!supabase||description.trim().length<12)return
@@ -58,6 +62,19 @@ function Setup({character,onDone}:{character:Character;onDone:()=>Promise<void>}
       if(options.length!==4)throw new Error('The Dungeon failed to produce four questionable life choices.')
       setClassOptions(options)
       setSelectedClassName('')
+      const suggested=data?.suggested_stats as Character['stats'] | undefined
+      if(suggested){
+        const suggestedValues=stats.map(stat=>Number(suggested[stat]))
+        if(suggestedValues.every(value=>Number.isInteger(value)&&value>=0)&&suggestedValues.reduce((sum,value)=>sum+value,0)===8){
+          setVals({
+            Strength:Number(suggested.Strength),
+            Dexterity:Number(suggested.Dexterity),
+            Intelligence:Number(suggested.Intelligence),
+            Constitution:Number(suggested.Constitution),
+            Charisma:Number(suggested.Charisma),
+          })
+        }
+      }
     }catch(e){setErr(e instanceof Error?e.message:'Could not generate classes')}finally{setBusy(false)}
   }
 
@@ -106,9 +123,20 @@ function Setup({character,onDone}:{character:Character;onDone:()=>Promise<void>}
 
       <section className="panel pad">
         <h3>Core Stats</h3>
-        <p className="muted small">Use exactly one +2, two +1s, and two 0s.</p>
+        <p className="muted small">You get 8 total points. The Dungeon will make a first guess from your description, but you can redistribute them however you want.</p>
+        <div className="stat-budget">
+          <strong>{statTotal}/8 points assigned</strong>
+          <span className="muted small">{classOptions.length?'Dungeon suggestion loaded. Adjust as needed.':'Judge My Life to get a suggested spread.'}</span>
+        </div>
         <div className="creation-stats">
-          {stats.map(s=><label key={s}><span>{s}</span><select value={vals[s]} onChange={e=>setVals(x=>({...x,[s]:Number(e.target.value)}))}><option value={2}>+2</option><option value={1}>+1</option><option value={0}>0</option></select></label>)}
+          {stats.map(s=><div className="creation-stat-card" key={s}>
+            <span>{s}</span>
+            <div className="stat-stepper">
+              <button type="button" className="button stat-step" disabled={vals[s]===0} onClick={()=>adjustStat(s,-1)}>−</button>
+              <strong>+{vals[s]}</strong>
+              <button type="button" className="button stat-step" disabled={statTotal>=8} onClick={()=>adjustStat(s,1)}>+</button>
+            </div>
+          </div>)}
         </div>
         <div className="surface-note">Starting health: <strong>{6+vals.Constitution} ♥</strong></div>
       </section>
