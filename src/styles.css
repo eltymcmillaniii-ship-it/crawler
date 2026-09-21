@@ -77,3 +77,8 @@
 
 .gm-item-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:10px}
 .gm-item-actions strong{min-width:24px;text-align:center}
+
+.game-card-shell{display:flex;gap:8px;align-items:stretch}
+.game-open-card{flex:1}
+.game-delete-button{margin-top:0!important;flex:none}
+@media(max-width:520px){.game-card-shell{flex-direction:column}.game-delete-button{width:100%}}
