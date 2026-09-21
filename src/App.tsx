@@ -100,7 +100,7 @@ function Setup({character,onDone}:{character:Character;onDone:()=>Promise<void>}
         </label>
         <div className="muted small">Real job, hobbies, bad habits, weird talents, personality — give the Dungeon ammunition.</div>
         <button className="button primary wide" disabled={busy||description.trim().length<12} onClick={()=>void generateClasses()}>
-          {busy?'The Dungeon Is Judging You…':classOptions.length?'Generate New Class Options':'Let the Dungeon Pick My Classes'}
+          {busy?'The Dungeon Is Judging You…':classOptions.length?'Judge My Life Again':'Judge My Life'}
         </button>
       </section>
 
