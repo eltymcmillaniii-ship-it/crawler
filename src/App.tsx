@@ -1,0 +1,160 @@
+import { useEffect, useState } from 'react'
+import { Brain, Gift, Package, Sparkles, Trophy, Users } from 'lucide-react'
+import type { Character, DungeonVerdict } from './lib/types'
+import { supabase, supabaseConfigured } from './lib/supabase'
+import {
+  applyDungeonVerdict, completeCharacterSetup, createGame, ensureAnonymousUser, joinGame,
+  listMyGames, loadCharacters, openLootBox, subscribeToGame,
+} from './lib/live'
+import type { GameSummary } from './lib/live'
+
+const stats = ['Strength','Dexterity','Intelligence','Constitution','Charisma'] as const
+const backgrounds = [
+  ['Nurse','First Aid'],['Mechanic','Mechanical Repair'],['Teacher','Crowd Control'],
+  ['Salesperson','Bullshitting'],['Bartender','People Reading'],['Hunter','Tracking'],
+  ['Ranch Hand','Animal Handling'],['IT / Engineer','Technical Troubleshooting'],
+] as const
+
+function Hearts({c,m}:{c:number;m:number}) {
+  return <div className="hearts">{Array.from({length:m},(_,i)=><span key={i} className={i<c?'heart':'heart empty'}>♥</span>)}</div>
+}
+
+function Setup({character,onDone}:{character:Character;onDone:()=>Promise<void>}) {
+  const [name,setName]=useState('')
+  const [bg,setBg]=useState('Nurse')
+  const [vals,setVals]=useState<Character['stats']>({Strength:2,Dexterity:1,Intelligence:1,Constitution:0,Charisma:0})
+  const [busy,setBusy]=useState(false)
+  const [err,setErr]=useState('')
+  const skill=backgrounds.find(x=>x[0]===bg)?.[1] || 'General Competence'
+  const v=Object.values(vals)
+  const valid=v.filter(x=>x===2).length===1&&v.filter(x=>x===1).length===2&&v.filter(x=>x===0).length===2&&!!name.trim()
+  async function save(){
+    if(!supabase||!valid)return
+    setBusy(true);setErr('')
+    try{
+      await completeCharacterSetup({characterId:character.id,name,background:bg,stats:vals,startingSkill:skill})
+      await onDone()
+    }catch(e){setErr(e instanceof Error?e.message:'Could not create crawler')}finally{setBusy(false)}
+  }
+  return <div className="creation-shell">
+    <section className="panel pad"><div className="eyebrow">Welcome to the Dungeon</div><h2>Create Your Crawler</h2><p className="muted">Choose who you were before all of this became a terrible idea.</p></section>
+    <div className="two-col">
+      <section className="panel pad"><h3>Identity</h3><label>Name<input value={name} onChange={e=>setName(e.target.value)} placeholder="Crawler name"/></label><label>Background<select value={bg} onChange={e=>setBg(e.target.value)}>{backgrounds.map(([b,s])=><option key={b} value={b}>{b} — {s}</option>)}</select></label><div className="surface-note">Starting skill: <strong>{skill}</strong></div></section>
+      <section className="panel pad"><h3>Core Stats</h3><p className="muted small">Use exactly one +2, two +1s, and two 0s.</p><div className="creation-stats">{stats.map(s=><label key={s}><span>{s}</span><select value={vals[s]} onChange={e=>setVals(x=>({...x,[s]:Number(e.target.value)}))}><option value={2}>+2</option><option value={1}>+1</option><option value={0}>0</option></select></label>)}</div><div className="surface-note">Starting health: <strong>{6+vals.Constitution} ♥</strong></div></section>
+    </div>
+    <button className="button primary" disabled={!valid||busy} onClick={()=>void save()}>{busy?'Entering…':'Enter the Dungeon'}</button>
+    {err&&<div className="error-banner">{err}</div>}
+  </div>
+}
+
+function Player({character,refresh}:{character:Character;refresh:()=>Promise<void>}) {
+  const [tab,setTab]=useState<'crawler'|'inventory'|'loot'|'achievements'>('crawler')
+  const [msg,setMsg]=useState('')
+  const [busy,setBusy]=useState(false)
+  async function spend(stat:string){
+    if(!supabase)return
+    setBusy(true);setMsg('')
+    try{const {error}=await supabase.rpc('spend_stat_point',{p_character_id:character.id,p_stat:stat});if(error)throw error;await refresh()}
+    catch(e){setMsg(e instanceof Error?e.message:'Could not spend point')}finally{setBusy(false)}
+  }
+  async function openBox(id:string){
+    setBusy(true);setMsg('')
+    try{const r=await openLootBox(id);setMsg(`${r.openingMessage} — You received ${r.item.name}.`);await refresh()}
+    catch(e){setMsg(e instanceof Error?e.message:'Box failed to open')}finally{setBusy(false)}
+  }
+  return <>
+    <section className="panel pad player-header"><div><h2>{character.name} <span className="pill">Level {character.level}</span></h2><div className="muted">{character.background}</div></div><div><div className="eyebrow">Health</div><Hearts c={character.currentHealth} m={character.maxHealth}/></div></section>
+    {character.unspentStatPoints>0&&<div className="live-banner"><strong>LEVEL UP!</strong> You have {character.unspentStatPoints} stat point{character.unspentStatPoints===1?'':'s'} to spend.</div>}
+    <nav className="tabs"><button className={`button ${tab==='crawler'?'primary':''}`} onClick={()=>setTab('crawler')}><Users size={16}/>Crawler</button><button className={`button ${tab==='inventory'?'primary':''}`} onClick={()=>setTab('inventory')}><Package size={16}/>Inventory</button><button className={`button ${tab==='loot'?'primary':''}`} onClick={()=>setTab('loot')}><Gift size={16}/>Loot</button><button className={`button ${tab==='achievements'?'primary':''}`} onClick={()=>setTab('achievements')}><Trophy size={16}/>Achievements</button></nav>
+    {msg&&<div className="status-message">{msg}</div>}
+    {tab==='crawler'&&<div className="two-col"><section className="panel pad"><h3><Brain size={18}/>Stats</h3><div className="stats-grid">{stats.map(s=><div className="stat" key={s}><span>{s}</span><strong>+{character.stats[s]}</strong>{character.unspentStatPoints>0&&<button className="button" disabled={busy} onClick={()=>void spend(s)}>+1</button>}</div>)}</div><h3>Conditions</h3><div className="chips">{character.conditions.length?character.conditions.map(x=><span className="pill" key={x}>{x}</span>):<span className="muted">None</span>}</div></section><section className="panel pad"><h3>Skills</h3>{character.skills.map(s=><div className="line-row" key={s.name}><span>{s.name}</span><strong>+{s.rank}</strong></div>)}<h3>Perks</h3>{character.perks.length?character.perks.map(x=><div className="tag-row" key={x}>{x}</div>):<div className="muted">None yet.</div>}</section></div>}
+    {tab==='inventory'&&<section className="panel pad"><h3>Backpack</h3><div className="card-grid">{character.inventory.length?character.inventory.map(i=><div className={`item-card rarity-${i.rarity}`} key={i.id}><strong>{i.name}</strong><div className="muted small">{i.type}{(i.quantity??1)>1?` ×${i.quantity}`:''}</div><div>{i.effect}</div>{i.quirk&&<div className="muted small">Quirk: {i.quirk}</div>}</div>):<div className="muted">Empty.</div>}</div><h3>Equipped Gear</h3><div className="card-grid">{Object.entries(character.gear).map(([slot,i])=><div className="item-card" key={slot}><div className="gear-label">{slot}</div><strong>{i?.name??'Empty'}</strong>{i&&<div className="muted small">{i.effect}</div>}</div>)}</div></section>}
+    {tab==='loot'&&<section className="panel pad"><h3>Unopened Loot Boxes</h3><div className="card-grid">{character.boxes.length?character.boxes.map(b=><div className={`item-card rarity-${b.rarity}`} key={b.id}><strong>🎁 {b.name}</strong><button className="button primary wide" disabled={busy} onClick={()=>void openBox(b.id)}>Open Box</button></div>):<div className="muted">No unopened boxes.</div>}</div></section>}
+    {tab==='achievements'&&<section className="panel pad"><h3>Achievements</h3>{character.achievements.length?character.achievements.map(a=><div className="tag-row" key={a.id}>🏆 <strong>{a.name}</strong><div className="muted small">{a.commentary}</div></div>):<div className="muted">None yet.</div>}</section>}
+  </>
+}
+
+function Judge({gameId,characters,refresh}:{gameId:string;characters:Character[];refresh:()=>Promise<void>}) {
+  const [event,setEvent]=useState('')
+  const [verdict,setVerdict]=useState<DungeonVerdict|null>(null)
+  const [busy,setBusy]=useState(false)
+  const [msg,setMsg]=useState('')
+  async function judge(){
+    if(!supabase||!event.trim())return
+    setBusy(true);setMsg('')
+    try{
+      const {data,error}=await supabase.functions.invoke('dungeon-judge',{body:{gameId,event,tone:'unhinged',frequency:'balanced',characters:characters.map(c=>({id:c.id,name:c.name,level:c.level,stats:c.stats,health:[c.currentHealth,c.maxHealth],skills:c.skills,gear:Object.values(c.gear).filter(Boolean)}))}})
+      if(error)throw error
+      if(data?.error)throw new Error(String(data.error))
+      setVerdict(data)
+    }catch(e){setMsg(e instanceof Error?e.message:'Judge failed')}finally{setBusy(false)}
+  }
+  async function apply(){
+    if(!verdict)return
+    setBusy(true)
+    try{await applyDungeonVerdict(gameId,event,verdict);await refresh();setMsg('Dungeon decision applied.');setVerdict(null);setEvent('')}
+    catch(e){setMsg(e instanceof Error?e.message:'Could not apply verdict')}finally{setBusy(false)}
+  }
+  return <section className="panel pad"><h3><Sparkles size={18}/>Dungeon Judge</h3><textarea rows={5} value={event} onChange={e=>setEvent(e.target.value)} placeholder="Describe what the crawlers just did…"/><button className="button primary" disabled={busy} onClick={()=>void judge()}>{busy?'Judging…':'Let the Dungeon Judge'}</button>{verdict&&<div className="loot-reveal"><h2>{verdict.should_reward?(verdict.achievement?.title||verdict.reward.name):'No Reward'}</h2><p>{verdict.achievement?.commentary||'The Dungeon is not impressed.'}</p>{verdict.reward.kind!=='none'&&<div className="item-card"><strong>{verdict.reward.name}</strong><div>{verdict.reward.effect}</div></div>}<div className="muted small">{verdict.reasoning_for_gm}</div><button className="button primary wide" onClick={()=>void apply()}>Apply Decision</button></div>}{msg&&<div className="status-message">{msg}</div>}</section>
+}
+
+function GM({gameId,characters,refresh}:{gameId:string;characters:Character[];refresh:()=>Promise<void>}) {
+  const [selected,setSelected]=useState('')
+  const [tab,setTab]=useState<'profiles'|'judge'>('profiles')
+  const [msg,setMsg]=useState('')
+  const [itemName,setItemName]=useState('')
+  const current=characters.find(c=>c.id===selected)||characters[0]
+  useEffect(()=>{if(!selected&&characters[0])setSelected(characters[0].id)},[characters,selected])
+  async function rpc(name:string,args:any){
+    if(!supabase)return
+    setMsg('')
+    const {error}=await supabase.rpc(name,args)
+    if(error){setMsg(error.message);return}
+    await refresh()
+  }
+  if(!current&&tab==='profiles')return <section className="panel pad"><h3>Waiting for crawlers</h3><p className="muted">Share the join code. Profiles appear here automatically.</p></section>
+  return <>
+    <nav className="tabs"><button className={`button ${tab==='profiles'?'primary':''}`} onClick={()=>setTab('profiles')}><Users size={16}/>Party Profiles</button><button className={`button ${tab==='judge'?'primary':''}`} onClick={()=>setTab('judge')}><Sparkles size={16}/>Dungeon Judge</button></nav>
+    {msg&&<div className="status-message">{msg}</div>}
+    {tab==='judge'&&<Judge gameId={gameId} characters={characters} refresh={refresh}/>}
+    {tab==='profiles'&&current&&<div className="gm-layout"><aside className="panel pad"><h3>Party</h3>{characters.map(c=><button className={`roster-card ${current.id===c.id?'selected':''}`} key={c.id} onClick={()=>setSelected(c.id)}><div><strong>{c.name}</strong><div className="muted small">Level {c.level} · {c.background}</div><Hearts c={c.currentHealth} m={c.maxHealth}/></div></button>)}</aside><main className="profile-stack">
+      <section className="panel pad profile-title"><div><h2>{current.name}</h2><div className="muted">Level {current.level} · {current.background}</div></div><Hearts c={current.currentHealth} m={current.maxHealth}/></section>
+      <section className="panel pad"><div className="quick-actions"><button className="button primary" onClick={()=>void rpc('gm_level_up',{p_character_id:current.id,p_levels:1,p_points_per_level:1})}>Level Up +1</button><button className="button" onClick={()=>void supabase?.from('characters').update({current_health:Math.max(0,current.currentHealth-1)}).eq('id',current.id).then(()=>refresh())}>−1 Health</button><button className="button" onClick={()=>void supabase?.from('characters').update({current_health:Math.min(current.maxHealth,current.currentHealth+1)}).eq('id',current.id).then(()=>refresh())}>+1 Health</button></div><div className="muted small">Unspent stat points: {current.unspentStatPoints}</div><div className="stats-grid">{stats.map(s=><div className="stat" key={s}><span>{s}</span><strong>+{current.stats[s]}</strong><div className="inline-actions"><button className="button" onClick={()=>void rpc('gm_adjust_stat',{p_character_id:current.id,p_stat:s,p_delta:-1})}>−</button><button className="button" onClick={()=>void rpc('gm_adjust_stat',{p_character_id:current.id,p_stat:s,p_delta:1})}>+</button></div></div>)}</div></section>
+      <div className="two-col"><section className="panel pad"><h3>Inventory</h3>{current.inventory.length?current.inventory.map(i=><div className="tag-row" key={i.id}><strong>{i.name}</strong><div className="muted small">{i.effect}</div><button className="button" onClick={()=>void rpc('gm_remove_character_item',{p_character_item_id:i.id})}>Remove</button></div>):<div className="muted">Empty.</div>}</section><section className="panel pad"><h3>Grant Item</h3><label>Item name<input value={itemName} onChange={e=>setItemName(e.target.value)} placeholder="Goblin Cleaver"/></label><button className="button primary" disabled={!itemName.trim()} onClick={()=>void rpc('gm_grant_item',{p_character_id:current.id,p_name:itemName,p_rarity:'B',p_item_type:'Utility',p_slot:null,p_effect:'GM granted item',p_quirk:'',p_quantity:1}).then(()=>setItemName(''))}>Add Bronze Item</button><h3>Skills</h3>{current.skills.map(s=><div className="line-row" key={s.name}><span>{s.name}</span><strong>+{s.rank}</strong></div>)}</section></div>
+    </main></div>}
+  </>
+}
+
+function Lobby({userId,games,reload,open}:{userId:string;games:GameSummary[];reload:()=>Promise<GameSummary[]>;open:(g:GameSummary)=>Promise<void>}) {
+  const [name,setName]=useState('Friday Crawl')
+  const [code,setCode]=useState('')
+  const [msg,setMsg]=useState('')
+  const [busy,setBusy]=useState(false)
+  async function make(){setBusy(true);try{const r=await createGame(name);setMsg(`Game created. Join code: ${r.joinCode}`);const g=(await reload()).find(x=>x.id===r.gameId);if(g)await open(g)}catch(e){setMsg(e instanceof Error?e.message:'Create failed')}finally{setBusy(false)}}
+  async function join(){setBusy(true);try{await joinGame(code);const list=await reload();const g=list.find(x=>x.joinCode===code.trim().toUpperCase());if(g)await open(g)}catch(e){setMsg(e instanceof Error?e.message:'Join failed')}finally{setBusy(false)}}
+  return <div className="app-shell"><header className="topbar"><div><h1>Crawler</h1><div className="muted">Multiplayer lobby</div></div><span className="pill">Device {userId.slice(0,8)}</span></header>{games.length>0&&<section className="panel pad"><h3>My Games</h3><div className="game-list">{games.map(g=><button className="game-card" key={g.id} onClick={()=>void open(g)}><div><strong>{g.name}</strong><div className="muted small">{g.role==='gm'?'GM':'Crawler'} · Floor {g.floorNumber}</div></div><span className="join-code">{g.joinCode}</span></button>)}</div></section>}<div className="two-col lobby-grid"><section className="panel pad"><h3>Create Game</h3><input value={name} onChange={e=>setName(e.target.value)}/><button className="button primary wide" disabled={busy} onClick={()=>void make()}>Create Game</button></section><section className="panel pad"><h3>Join Game</h3><input value={code} onChange={e=>setCode(e.target.value.toUpperCase())} placeholder="JOIN CODE"/><button className="button primary wide" disabled={busy} onClick={()=>void join()}>Join Game</button></section></div>{msg&&<div className="status-message">{msg}</div>}</div>
+}
+
+export default function App(){
+  const [userId,setUserId]=useState('')
+  const [games,setGames]=useState<GameSummary[]>([])
+  const [game,setGame]=useState<GameSummary|null>(null)
+  const [characters,setCharacters]=useState<Character[]>([])
+  const [loading,setLoading]=useState(true)
+  const [error,setError]=useState('')
+
+  async function reloadGames(uid=userId){if(!uid)return[];const g=await listMyGames(uid);setGames(g);return g}
+  async function refresh(g=game){if(!g)return;setCharacters(await loadCharacters(g.id))}
+  async function open(g:GameSummary){setGame(g);localStorage.setItem('crawler-active-game',g.id);await refresh(g)}
+
+  useEffect(()=>{if(!supabaseConfigured){setLoading(false);return}void(async()=>{try{const u=await ensureAnonymousUser();setUserId(u.id);const gs=await listMyGames(u.id);setGames(gs);const remembered=gs.find(g=>g.id===localStorage.getItem('crawler-active-game'));if(remembered)await open(remembered)}catch(e){setError(e instanceof Error?e.message:'Startup failed')}finally{setLoading(false)}})()},[])
+  useEffect(()=>{if(!game)return;const ch=subscribeToGame(game.id,()=>void refresh(game));return()=>{void supabase?.removeChannel(ch)}},[game?.id])
+
+  if(!supabaseConfigured)return <div className="app-shell"><section className="panel pad"><h2>Crawler needs Supabase configuration</h2><p className="muted">Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in the deployment environment.</p></section></div>
+  if(loading)return <div className="app-shell"><section className="panel pad"><h2>Opening the Dungeon…</h2></section></div>
+  if(error)return <div className="app-shell"><section className="panel pad"><h2>Could not enter</h2><p>{error}</p></section></div>
+  if(!game)return <Lobby userId={userId} games={games} reload={()=>reloadGames(userId)} open={open}/>
+
+  const me=characters.find(c=>c.userId===userId)
+  return <div className="app-shell"><header className="topbar"><div><h1>{game.name}</h1><div className="muted">Floor {game.floorNumber} · Join code <strong>{game.joinCode}</strong></div></div><button className="button" onClick={()=>{setGame(null);localStorage.removeItem('crawler-active-game')}}>Lobby</button></header><div className="live-banner">Live multiplayer connected.</div>{game.role==='gm'?<GM gameId={game.id} characters={characters} refresh={()=>refresh(game)}/>:me?!me.setupComplete?<Setup character={me} onDone={()=>refresh(game)}/>:<Player character={me} refresh={()=>refresh(game)}/>:<section className="panel pad"><p>Preparing your crawler…</p></section>}</div>
+}
