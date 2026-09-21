@@ -374,7 +374,13 @@ function GM({gameId,characters,refresh}:{gameId:string;characters:Character[];re
             <div className="muted small">{i.type}{(i.quantity??1)>1?` ×${i.quantity}`:''}</div>
             {i.effect&&<div className="small gm-item-copy">{i.effect}</div>}
             {i.quirk&&<div className="muted small">Quirk: {i.quirk}</div>}
-            <button className="button" onClick={()=>void rpc('gm_remove_character_item',{p_character_item_id:i.id})}>Remove</button>
+            <div className="gm-item-actions">
+              <span className="muted small">Core value</span>
+              <button className="button stat-step" onClick={()=>void rpc('gm_adjust_item_core_value',{p_character_item_id:i.id,p_delta:-1})}>−</button>
+              <strong>{i.coreValue}</strong>
+              <button className="button stat-step" onClick={()=>void rpc('gm_adjust_item_core_value',{p_character_item_id:i.id,p_delta:1})}>+</button>
+              <button className="button" onClick={()=>void rpc('gm_remove_character_item',{p_character_item_id:i.id})}>Remove</button>
+            </div>
           </div>):<div className="muted">Empty.</div>}
         </section>
 
