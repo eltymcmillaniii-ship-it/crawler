@@ -1861,3 +1861,115 @@ select:disabled,input:disabled,textarea:disabled{opacity:.55}
     transition-duration:.001ms!important;
   }
 }
+
+
+/* v1.6 — quarter-heart health system */
+.health-display{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.hearts{
+  display:flex;
+  align-items:center;
+  gap:3px;
+  flex-wrap:wrap;
+}
+.heart-quartered{
+  position:relative;
+  display:inline-block;
+  width:18px;
+  height:19px;
+  flex:none;
+  font-size:1.42rem;
+  line-height:1;
+}
+.heart-base,
+.heart-fill{
+  position:absolute;
+  inset:0;
+  display:block;
+  line-height:1;
+}
+.heart-base{
+  color:#4a2a2d;
+  opacity:.48;
+  text-shadow:0 0 1px #000;
+}
+.heart-fill{
+  color:#f04c55;
+  opacity:0;
+  filter:drop-shadow(0 0 3px rgba(240,76,85,.35));
+}
+.heart-fill.filled{opacity:1}
+.heart-q1{clip-path:inset(0 50% 50% 0)}
+.heart-q2{clip-path:inset(0 0 50% 50%)}
+.heart-q3{clip-path:inset(50% 50% 0 0)}
+.heart-q4{clip-path:inset(50% 0 0 50%)}
+.heart-readout{
+  color:#b8aca4;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:.65rem;
+  white-space:nowrap;
+}
+.gm-health-control-block{
+  margin:12px 0 16px;
+}
+.gm-health-control-block .quick-actions{
+  margin:0 0 10px;
+}
+.gm-health-controls{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  padding:11px 12px;
+  border:1px solid #4b3533;
+  border-left:4px solid #a9342d;
+  background:linear-gradient(90deg,rgba(226,56,47,.06),transparent 40%),#101214;
+}
+.gm-health-label{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  min-width:0;
+}
+.gm-health-label>span:first-child{
+  color:#c9beb1;
+  font-size:.7rem;
+  font-weight:900;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+.gm-health-buttons{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(64px,1fr));
+  gap:7px;
+  flex:1;
+  max-width:430px;
+}
+.gm-health-buttons .button{
+  min-height:38px;
+  padding:6px 8px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+.consume-actions{margin-top:12px}
+.use-item-button{
+  width:100%;
+  min-height:40px;
+}
+@media(max-width:720px){
+  .gm-health-controls{
+    align-items:stretch;
+    flex-direction:column;
+  }
+  .gm-health-buttons{
+    width:100%;
+    max-width:none;
+  }
+}
+@media(max-width:440px){
+  .gm-health-buttons{grid-template-columns:1fr 1fr}
+  .heart-quartered{width:16px;height:17px;font-size:1.28rem}
+}
