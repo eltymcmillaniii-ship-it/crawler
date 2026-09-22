@@ -2091,3 +2091,33 @@ select:disabled,input:disabled,textarea:disabled{opacity:.55}
   .health-bar-readout{min-width:68px}
   .gm-con-label{width:100%;margin-left:0;padding-left:0;padding-top:6px;border-left:0;border-top:1px solid #34383b}
 }
+
+
+/* v1.7.1 — clean continuous HP bars */
+.health-bar-wrap{
+  flex-wrap:nowrap!important;
+  white-space:nowrap;
+}
+.health-bar-track{
+  height:16px;
+  border-radius:999px;
+  overflow:hidden;
+  background:#24100f;
+  border:1px solid #4c2926;
+}
+.health-bar-fill{
+  border-radius:999px;
+}
+.health-bar-grid{
+  display:none!important;
+}
+.health-bar-readout{
+  white-space:nowrap!important;
+  flex:none;
+}
+.player-header .health-bar-wrap,
+.gm-profile-health .health-bar-wrap,
+.gm-health-label .health-bar-wrap,
+.roster-copy .health-bar-wrap{
+  flex-wrap:nowrap!important;
+}
