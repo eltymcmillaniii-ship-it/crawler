@@ -95,7 +95,7 @@ Deno.serve(async (req) => {
 
     const { data: box, error: boxError } = await caller
       .from('loot_boxes')
-      .select('id,character_id,name,rarity,opened_at')
+      .select('id,character_id,name,rarity,opened_at,preset_reward')
       .eq('id', boxId)
       .maybeSingle()
     if (boxError) throw boxError
@@ -143,9 +143,24 @@ Deno.serve(async (req) => {
 
     let reward: Reward
     let source = 'offline'
+    const preset = box.preset_reward && typeof box.preset_reward === 'object' ? box.preset_reward as Reward : null
     const apiKey = Deno.env.get('OPENAI_API_KEY')
 
-    if (apiKey) {
+    if (preset) {
+      reward = {
+        name: String((preset as any).name ?? 'Dungeon Item'),
+        item_type: (['Weapon','Armor','Accessory','Consumable','Utility','Quest','AI Generated'].includes(String((preset as any).item_type))
+          ? String((preset as any).item_type)
+          : 'AI Generated') as Reward['item_type'],
+        slot: (['Head','Body','Hands','Feet','Weapon 1','Weapon 2','Accessory 1','Accessory 2'].includes(String((preset as any).slot))
+          ? String((preset as any).slot)
+          : null) as Reward['slot'],
+        effect: String((preset as any).effect ?? ''),
+        quirk: String((preset as any).quirk ?? ''),
+        opening_message: String((preset as any).opening_message ?? 'The Dungeon has issued a direct supply allocation.'),
+      }
+      source = 'gm-command'
+    } else if (apiKey) {
       try {
         const openai = new OpenAI({ apiKey })
         const response = await openai.responses.create({
