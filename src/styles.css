@@ -2566,3 +2566,46 @@ select:disabled,input:disabled,textarea:disabled{opacity:.55}
 @media(max-width:560px){
   .command-ai-broadcast{grid-template-columns:1fr}
 }
+
+
+/* v1.9.2 — individualized Dungeon Command rewards */
+.command-individual-rewards{
+  margin-top:12px;
+}
+.command-individual-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;
+  margin-top:8px;
+}
+.command-individual-item{
+  min-width:0;
+  padding:12px;
+  border:1px solid #414549;
+  border-left:4px solid #8c6f29;
+  background:#111315;
+}
+.command-individual-item.rarity-S{border-left-color:#a7b0b5}
+.command-individual-item.rarity-G{border-left-color:#d6a62b}
+.command-individual-recipient{
+  margin-bottom:8px;
+  color:#f1e5d5;
+  font-family:Impact,"Arial Narrow",sans-serif;
+  font-size:1rem;
+  letter-spacing:.045em;
+  text-transform:uppercase;
+}
+.command-individual-item>strong{
+  display:block;
+  margin:4px 0 5px;
+  color:#f5eee4;
+}
+.command-individual-effect{
+  margin-top:8px;
+  color:#d0c7ba;
+  font-size:.76rem;
+  line-height:1.4;
+}
+@media(max-width:720px){
+  .command-individual-grid{grid-template-columns:1fr}
+}
