@@ -2339,3 +2339,21 @@ select:disabled,input:disabled,textarea:disabled{opacity:.55}
     grid-template-columns:repeat(3,minmax(0,1fr));
   }
 }
+
+
+/* v1.8.2 — realtime connection states */
+.system-strip.live-status-connecting,
+.system-strip.live-status-reconnecting{
+  border-color:#66521f;
+  border-left-color:var(--warning);
+  background:#1d180c;
+  color:#cdbb87;
+}
+.system-strip.live-status-connecting .system-dot,
+.system-strip.live-status-reconnecting .system-dot{
+  background:var(--warning);
+  box-shadow:0 0 8px rgba(227,166,41,.55);
+}
+.system-strip.live-status-reconnecting .system-dot{
+  animation:dungeonPulse .75s ease-in-out infinite;
+}
