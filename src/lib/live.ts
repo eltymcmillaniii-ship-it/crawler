@@ -407,6 +407,16 @@ export async function applyDungeonVerdict(gameId: string, eventText: string, ver
   if (error) throw error
 }
 
+export async function applyDungeonCommand(gameId: string, commandText: string, command: unknown) {
+  const sb = client()
+  const { error } = await sb.rpc('apply_dungeon_command', {
+    p_game_id: gameId,
+    p_command_text: commandText,
+    p_command: command,
+  })
+  if (error) throw error
+}
+
 export async function loadPartyMembers(gameId: string): Promise<PartyMember[]> {
   const sb = client()
   const { data, error } = await sb.rpc('list_party_members', { p_game_id: gameId })
