@@ -3,8 +3,8 @@ import { Brain, Gift, Package, Sparkles, Trophy, Users } from 'lucide-react'
 import type { Character, DungeonVerdict } from './lib/types'
 import { supabase, supabaseConfigured } from './lib/supabase'
 import {
-  applyDungeonVerdict, completeCharacterSetup, createGame, deleteGame, ensureAnonymousUser, joinGame,
-  listMyGames, loadCharacters, openLootBox, persistCharacterDiff, subscribeToGame,
+  applyDungeonVerdict, completeCharacterSetup, createGame, createGmLogin, deleteGame, ensureAnonymousUser, joinGame,
+  listMyGames, loadCharacters, openLootBox, persistCharacterDiff, signInGm, signOutUser, subscribeToGame,
 } from './lib/live'
 import type { GameSummary } from './lib/live'
 
@@ -421,13 +421,56 @@ function GM({gameId,characters,refresh}:{gameId:string;characters:Character[];re
   </>
 }
 
-function Lobby({userId,games,reload,open}:{userId:string;games:GameSummary[];reload:()=>Promise<GameSummary[]>;open:(g:GameSummary)=>Promise<void>}) {
+function Lobby({userId,isAnonymous,accountEmail,games,reload,open}:{userId:string;isAnonymous:boolean;accountEmail:string;games:GameSummary[];reload:()=>Promise<GameSummary[]>;open:(g:GameSummary)=>Promise<void>}) {
   const [name,setName]=useState('Friday Crawl')
   const [code,setCode]=useState('')
   const [msg,setMsg]=useState('')
   const [busy,setBusy]=useState(false)
+  const [loginEmail,setLoginEmail]=useState('')
+  const [loginPassword,setLoginPassword]=useState('')
+  const ownsGame=games.some(g=>g.isOwner)
+
   async function make(){setBusy(true);try{const r=await createGame(name);setMsg(`Game created. Join code: ${r.joinCode}`);const g=(await reload()).find(x=>x.id===r.gameId);if(g)await open(g)}catch(e){setMsg(e instanceof Error?e.message:'Create failed')}finally{setBusy(false)}}
   async function join(){setBusy(true);try{await joinGame(code);const list=await reload();const g=list.find(x=>x.joinCode===code.trim().toUpperCase());if(g)await open(g)}catch(e){setMsg(e instanceof Error?e.message:'Join failed')}finally{setBusy(false)}}
+
+  async function createLogin(){
+    if(!loginEmail.trim()||loginPassword.length<8)return
+    setBusy(true);setMsg('')
+    try{
+      await createGmLogin(loginEmail,loginPassword)
+      window.location.reload()
+    }catch(e){
+      setMsg(e instanceof Error?e.message:'Could not create GM login')
+    }finally{
+      setBusy(false)
+    }
+  }
+
+  async function login(){
+    if(!loginEmail.trim()||!loginPassword)return
+    setBusy(true);setMsg('')
+    try{
+      await signInGm(loginEmail,loginPassword)
+      window.location.reload()
+    }catch(e){
+      setMsg(e instanceof Error?e.message:'Could not sign in')
+    }finally{
+      setBusy(false)
+    }
+  }
+
+  async function logout(){
+    setBusy(true);setMsg('')
+    try{
+      await signOutUser()
+      localStorage.removeItem('crawler-active-game')
+      window.location.reload()
+    }catch(e){
+      setMsg(e instanceof Error?e.message:'Could not sign out')
+      setBusy(false)
+    }
+  }
+
   async function removeGame(g:GameSummary){
     if(!g.isOwner)return
     const confirmed=window.confirm(`Delete "${g.name}" permanently? This removes the group, every crawler, inventory item, achievement, loot box, trade, and Dungeon event in it. This cannot be undone.`)
@@ -443,11 +486,48 @@ function Lobby({userId,games,reload,open}:{userId:string;games:GameSummary[];rel
       setBusy(false)
     }
   }
-  return <div className="app-shell"><header className="topbar"><div><h1>Crawler</h1><div className="muted">Multiplayer lobby</div></div><span className="pill">Device {userId.slice(0,8)}</span></header>{games.length>0&&<section className="panel pad"><h3>My Games</h3><div className="game-list">{games.map(g=><div className="game-card-shell" key={g.id}><button className="game-card game-open-card" disabled={busy} onClick={()=>void open(g)}><div><strong>{g.name}</strong><div className="muted small">{g.isOwner?'Owner · ':g.role==='gm'?'GM · ':'Crawler · '}Floor {g.floorNumber}</div></div><span className="join-code">{g.joinCode}</span></button>{g.isOwner&&<button className="button danger-button game-delete-button" disabled={busy} onClick={()=>void removeGame(g)}>Delete Group</button>}</div>)}</div></section>}<div className="two-col lobby-grid"><section className="panel pad"><h3>Create Game</h3><input value={name} onChange={e=>setName(e.target.value)}/><button className="button primary wide" disabled={busy} onClick={()=>void make()}>Create Game</button></section><section className="panel pad"><h3>Join Game</h3><input value={code} onChange={e=>setCode(e.target.value.toUpperCase())} placeholder="JOIN CODE"/><button className="button primary wide" disabled={busy} onClick={()=>void join()}>Join Game</button></section></div>{msg&&<div className="status-message">{msg}</div>}</div>
+
+  return <div className="app-shell">
+    <header className="topbar">
+      <div><h1>Crawler</h1><div className="muted">Multiplayer lobby</div></div>
+      <span className="pill">{isAnonymous?`Device ${userId.slice(0,8)}`:`GM · ${accountEmail}`}</span>
+    </header>
+
+    {isAnonymous
+      ? <section className="panel pad gm-login-panel">
+          <div className="gm-login-copy">
+            <h3>GM Login</h3>
+            <p className="muted">{ownsGame?'Create a permanent GM login to open these groups from any phone, tablet, or computer.':'Already created a GM login? Sign in here to access your groups from this device.'}</p>
+          </div>
+          <div className="gm-login-fields">
+            <label>Email<input type="email" autoComplete="email" value={loginEmail} onChange={e=>setLoginEmail(e.target.value)} placeholder="you@example.com"/></label>
+            <label>Password<input type="password" autoComplete={ownsGame?'new-password':'current-password'} value={loginPassword} onChange={e=>setLoginPassword(e.target.value)} placeholder="At least 8 characters"/></label>
+          </div>
+          <div className="gm-login-actions">
+            {ownsGame&&<button className="button primary" disabled={busy||!loginEmail.trim()||loginPassword.length<8} onClick={()=>void createLogin()}>Create GM Login</button>}
+            <button className={`button ${ownsGame?'':'primary'}`} disabled={busy||!loginEmail.trim()||!loginPassword} onClick={()=>void login()}>Sign In as GM</button>
+          </div>
+          {ownsGame&&<div className="muted small">Creating the login keeps your existing groups, players, loot, and game history attached to the new account.</div>}
+        </section>
+      : <section className="panel pad signed-in-panel">
+          <div><div className="eyebrow">GM Account</div><strong>{accountEmail}</strong><div className="muted small">You can sign into this account from another device.</div></div>
+          <button className="button" disabled={busy} onClick={()=>void logout()}>Sign Out</button>
+        </section>}
+
+    {games.length>0&&<section className="panel pad"><h3>My Games</h3><div className="game-list">{games.map(g=><div className="game-card-shell" key={g.id}><button className="game-card game-open-card" disabled={busy} onClick={()=>void open(g)}><div><strong>{g.name}</strong><div className="muted small">{g.isOwner?'Owner · ':g.role==='gm'?'GM · ':'Crawler · '}Floor {g.floorNumber}</div></div><span className="join-code">{g.joinCode}</span></button>{g.isOwner&&<button className="button danger-button game-delete-button" disabled={busy} onClick={()=>void removeGame(g)}>Delete Group</button>}</div>)}</div></section>}
+
+    <div className="two-col lobby-grid">
+      <section className="panel pad"><h3>Create Game</h3><input value={name} onChange={e=>setName(e.target.value)}/><button className="button primary wide" disabled={busy} onClick={()=>void make()}>Create Game</button></section>
+      <section className="panel pad"><h3>Join Game</h3><input value={code} onChange={e=>setCode(e.target.value.toUpperCase())} placeholder="JOIN CODE"/><button className="button primary wide" disabled={busy} onClick={()=>void join()}>Join Game</button></section>
+    </div>
+    {msg&&<div className="status-message">{msg}</div>}
+  </div>
 }
 
 export default function App(){
   const [userId,setUserId]=useState('')
+  const [isAnonymous,setIsAnonymous]=useState(true)
+  const [accountEmail,setAccountEmail]=useState('')
   const [games,setGames]=useState<GameSummary[]>([])
   const [game,setGame]=useState<GameSummary|null>(null)
   const [characters,setCharacters]=useState<Character[]>([])
@@ -458,13 +538,13 @@ export default function App(){
   async function refresh(g=game){if(!g)return;setCharacters(await loadCharacters(g.id))}
   async function open(g:GameSummary){setGame(g);localStorage.setItem('crawler-active-game',g.id);await refresh(g)}
 
-  useEffect(()=>{if(!supabaseConfigured){setLoading(false);return}void(async()=>{try{const u=await ensureAnonymousUser();setUserId(u.id);const gs=await listMyGames(u.id);setGames(gs);const remembered=gs.find(g=>g.id===localStorage.getItem('crawler-active-game'));if(remembered)await open(remembered)}catch(e){setError(e instanceof Error?e.message:'Startup failed')}finally{setLoading(false)}})()},[])
+  useEffect(()=>{if(!supabaseConfigured){setLoading(false);return}void(async()=>{try{const u=await ensureAnonymousUser();setUserId(u.id);setIsAnonymous(Boolean(u.is_anonymous));setAccountEmail(String(u.email??''));const gs=await listMyGames(u.id);setGames(gs);const remembered=gs.find(g=>g.id===localStorage.getItem('crawler-active-game'));if(remembered)await open(remembered)}catch(e){setError(e instanceof Error?e.message:'Startup failed')}finally{setLoading(false)}})()},[])
   useEffect(()=>{if(!game)return;const ch=subscribeToGame(game.id,()=>void refresh(game));return()=>{void supabase?.removeChannel(ch)}},[game?.id])
 
   if(!supabaseConfigured)return <div className="app-shell"><section className="panel pad"><h2>Crawler needs Supabase configuration</h2><p className="muted">Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in the deployment environment.</p></section></div>
   if(loading)return <div className="app-shell"><section className="panel pad"><h2>Opening the Dungeon…</h2></section></div>
   if(error)return <div className="app-shell"><section className="panel pad"><h2>Could not enter</h2><p>{error}</p></section></div>
-  if(!game)return <Lobby userId={userId} games={games} reload={()=>reloadGames(userId)} open={open}/>
+  if(!game)return <Lobby userId={userId} isAnonymous={isAnonymous} accountEmail={accountEmail} games={games} reload={()=>reloadGames(userId)} open={open}/>
 
   const me=characters.find(c=>c.userId===userId)
   return <div className="app-shell"><header className="topbar"><div><h1>{game.name}</h1><div className="muted">Floor {game.floorNumber} · Join code <strong>{game.joinCode}</strong></div></div><button className="button" onClick={()=>{setGame(null);localStorage.removeItem('crawler-active-game')}}>Lobby</button></header><div className="live-banner">Live multiplayer connected.</div>{game.role==='gm'?<GM gameId={game.id} characters={characters} refresh={()=>refresh(game)}/>:me?!me.setupComplete?<Setup character={me} onDone={()=>refresh(game)}/>:<Player character={me} refresh={()=>refresh(game)}/>:<section className="panel pad"><p>Preparing your crawler…</p></section>}</div>
