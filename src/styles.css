@@ -1280,3 +1280,137 @@ input::placeholder,textarea::placeholder{color:#6f716f}
   .trade-status-line,.trade-history-row{align-items:flex-start;flex-direction:column}
   .trade-history-row .button{width:100%}
 }
+
+
+/* v1.4 — direct GM Dungeon command console */
+.dungeon-command-panel{
+  margin-top:14px;
+  border-color:#66521f;
+  background:
+    radial-gradient(circle at 88% 0,rgba(227,166,41,.10),transparent 24rem),
+    linear-gradient(180deg,#171713,#101214);
+}
+.dungeon-command-panel:before{
+  background:var(--warning);
+}
+.command-masthead{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:16px;
+  padding-bottom:14px;
+  border-bottom:1px solid #403a27;
+}
+.command-masthead h2{
+  margin:4px 0 6px;
+  font-family:Impact,"Arial Narrow",sans-serif;
+  font-size:clamp(1.8rem,4vw,2.7rem);
+  letter-spacing:.05em;
+  color:#ffe2a1;
+  text-shadow:2px 2px 0 #3a2b0c;
+}
+.command-masthead p{max-width:720px;margin:0}
+.command-badge{
+  flex:none;
+  border:1px solid #85681e;
+  background:#2b230e;
+  color:#ffd45c;
+  padding:6px 9px;
+  border-radius:3px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:.66rem;
+  font-weight:900;
+  letter-spacing:.1em;
+}
+.command-input-shell{
+  margin-top:15px;
+  padding:14px;
+  border:1px solid #45422f;
+  background:#0d0f0f;
+}
+.command-input-shell textarea{width:100%;resize:vertical}
+.command-interpret-button{
+  border-color:#7b6425!important;
+  background:#2a230f!important;
+  color:#ffda6b!important;
+}
+.command-preview{
+  position:relative;
+  margin-top:15px;
+  padding:16px;
+  border:1px solid #6d5922;
+  background:linear-gradient(180deg,#1e1a0e,#111315);
+}
+.command-preview:before{
+  content:"";
+  position:absolute;
+  top:0;
+  left:0;
+  right:0;
+  height:3px;
+  background:repeating-linear-gradient(135deg,var(--warning) 0 9px,#151515 9px 18px);
+}
+.command-preview-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:14px;
+}
+.command-preview-head h3{
+  margin:4px 0 0;
+  line-height:1.25;
+  color:#f6ead0;
+}
+.command-recipient-list{
+  display:flex;
+  gap:7px;
+  flex-wrap:wrap;
+  margin:13px 0;
+}
+.command-action-card{
+  padding:14px;
+  margin-top:12px;
+  border:1px solid #4a4637;
+  border-left-width:5px;
+  background:#0d0f10;
+}
+.command-action-card>strong{
+  display:block;
+  margin:5px 0 8px;
+  font-size:1.15rem;
+  color:#f8eedc;
+}
+.command-guarantee{
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+  margin:9px 0;
+  padding:9px 10px;
+  border:1px solid #514a32;
+  background:#15130d;
+}
+.command-guarantee span{
+  color:#9f9889;
+  font-size:.64rem;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+}
+.command-guarantee strong{color:#ffdf81}
+.health-command-card{border-left-color:#4aa173}
+.command-warning{
+  margin-top:13px;
+  padding:9px 10px;
+  border:1px solid #5b4b22;
+  background:#211b0c;
+  color:#dfc676;
+  font-size:.78rem;
+}
+.command-inline-error{
+  margin:0!important;
+  width:100%;
+}
+.command-execute-button{min-height:50px}
+@media(max-width:600px){
+  .command-masthead,.command-preview-head{flex-direction:column}
+  .command-badge{align-self:flex-start}
+}
