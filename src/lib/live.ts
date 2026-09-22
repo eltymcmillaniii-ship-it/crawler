@@ -125,6 +125,17 @@ export async function joinGame(joinCode: string, characterName = 'Unnamed Crawle
   return String(data)
 }
 
+export async function recoverCrawler(joinCode: string, recoveryCode: string): Promise<string> {
+  const sb = client()
+  const { data, error } = await sb.rpc('recover_crawler', {
+    p_join_code: joinCode.trim().toUpperCase(),
+    p_recovery_code: recoveryCode.trim().toUpperCase(),
+  })
+  if (error) throw error
+  if (!data) throw new Error('Crawler recovery did not return a character ID.')
+  return String(data)
+}
+
 export async function completeCharacterSetup(args: {
   characterId: string
   name: string
@@ -212,6 +223,7 @@ export async function loadCharacters(gameId: string): Promise<Character[]> {
       currentHealth: Number(row.current_health ?? 6),
       maxHealth: Number(row.max_health ?? 6),
       portraitUrl: row.portrait_url ? String(row.portrait_url) : null,
+      recoveryCode: String(row.recovery_code ?? ''),
       setupComplete: Boolean(row.setup_complete ?? false),
       stats: { Strength:0, Dexterity:0, Intelligence:0, Constitution:0, Charisma:0, ...(row.stats ?? {}) },
       conditions: Array.isArray(row.conditions) ? row.conditions : [],
