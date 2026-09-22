@@ -545,22 +545,35 @@ export async function openLootBox(boxId: string): Promise<LootOpenResult> {
   return data as LootOpenResult
 }
 
-export function subscribeToGame(gameId: string, onChange: () => void): RealtimeChannel {
+export function subscribeToGame(
+  gameId: string,
+  onChange: () => void,
+  onStatus?: (status: string) => void,
+): RealtimeChannel {
   const sb = client()
   let scheduled = false
   const refresh = () => {
     if (scheduled) return
     scheduled = true
-    window.setTimeout(() => { scheduled = false; onChange() }, 120)
+    window.setTimeout(() => {
+      scheduled = false
+      onChange()
+    }, 40)
   }
+
   return sb
     .channel(`crawler-game-${gameId}`)
     .on('postgres_changes', { event:'*', schema:'public', table:'characters', filter:`game_id=eq.${gameId}` }, refresh)
+    .on('postgres_changes', { event:'*', schema:'public', table:'items', filter:`game_id=eq.${gameId}` }, refresh)
     .on('postgres_changes', { event:'*', schema:'public', table:'skills' }, refresh)
     .on('postgres_changes', { event:'*', schema:'public', table:'character_items' }, refresh)
     .on('postgres_changes', { event:'*', schema:'public', table:'achievements' }, refresh)
     .on('postgres_changes', { event:'*', schema:'public', table:'loot_boxes' }, refresh)
     .on('postgres_changes', { event:'*', schema:'public', table:'trades', filter:`game_id=eq.${gameId}` }, refresh)
     .on('postgres_changes', { event:'*', schema:'public', table:'dungeon_events', filter:`game_id=eq.${gameId}` }, refresh)
-    .subscribe()
+    .on('postgres_changes', { event:'UPDATE', schema:'public', table:'games', filter:`id=eq.${gameId}` }, refresh)
+    .subscribe(status => {
+      onStatus?.(status)
+      if (status === 'SUBSCRIBED') refresh()
+    })
 }
