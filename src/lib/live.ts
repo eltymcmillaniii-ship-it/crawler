@@ -153,6 +153,14 @@ export async function unequipCharacterItem(characterItemId: string) {
   if (error) throw error
 }
 
+export async function useCharacterItem(characterItemId: string): Promise<number> {
+  const { data, error } = await client().rpc('use_character_item', {
+    p_character_item_id: characterItemId,
+  })
+  if (error) throw error
+  return Number(data ?? 0)
+}
+
 export async function joinGame(joinCode: string, characterName = 'Unnamed Crawler'): Promise<string> {
   const sb = client()
   const { data, error } = await sb.rpc('join_game', {
