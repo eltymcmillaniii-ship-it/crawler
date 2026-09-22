@@ -48,12 +48,10 @@ const schema = {
 
 type CharacterInput = { id: string; name: string }
 
-function inferHealthQuarters(lower: string) {
+function inferHealthPoints(lower: string) {
   if (/\bfull\b|\bmax\b/.test(lower)) return 0
-  const quarterMatch = lower.match(/(\d+)\s*(?:quarter|quarters|¼)/)
-  if (quarterMatch) return Math.max(1, Number(quarterMatch[1]) || 1)
-  if (/\bhalf\b|½/.test(lower)) return 2
-  if (/three[- ]?quarters|¾/.test(lower)) return 3
+  const hpMatch = lower.match(/(\d+)\s*(?:hp|health points?)/)
+  if (hpMatch) return Math.max(1, Number(hpMatch[1]) || 1)
   const heartMatch = lower.match(/(\d+(?:\.\d+)?)\s*hearts?/)
   if (heartMatch) return Math.max(1, Math.round(Number(heartMatch[1]) * 4))
   return 1
@@ -84,7 +82,7 @@ function fallback(body: any) {
           name: minorHealing ? 'Minor Healing Potion' : healing ? 'Healing Potion' : 'Dungeon Supply',
           item_type: healing ? 'Consumable' : 'Utility',
           slot: null,
-          effect: healing ? 'Restore 1 health quadrant (¼ heart) when used.' : 'A useful supply issued directly by the GM.',
+          effect: healing ? 'Restore 1 HP when used.' : 'A useful supply issued directly by the GM.',
           quirk: healing ? 'Tastes aggressively medicinal.' : 'Marked PROPERTY OF THE DUNGEON.',
         },
         health_delta: 0,
@@ -103,7 +101,7 @@ function fallback(body: any) {
         box_name: '',
         opening_message: '',
         item: { name:'', item_type:'AI Generated', slot:null, effect:'', quirk:'' },
-        health_delta: /full/.test(lower) ? 0 : inferHealthQuarters(lower),
+        health_delta: /full/.test(lower) ? 0 : inferHealthPoints(lower),
         full_heal: /full/.test(lower),
       },
     }
@@ -182,7 +180,7 @@ Deno.serve(async (req) => {
       const openai = new OpenAI({ apiKey })
       const response = await openai.responses.create({
         model: Deno.env.get('OPENAI_MODEL') || 'gpt-5.6-luna',
-        instructions: `You are a command interpreter for a tabletop RPG GM. This is NOT judgment. Do not decide whether players deserve something and do not add achievements. Obey the GM's instruction as directly as possible and convert it into exactly one supported game action. Supported actions: loot_box, item, health. Recipient IDs MUST be copied exactly from the supplied character list. "Everyone", "all", or "party" means every supplied character ID. If the GM asks for a loot box containing a specific item, put that exact guaranteed item in action.item; it must not be randomized later. Keep item effects short and tabletop-friendly. Bronze is default unless the GM explicitly says Silver or Gold. If an item is a weapon use Weapon 1 as its slot; accessories use Accessory 1; armor needs the most plausible Head/Body/Hands/Feet slot; consumables and utilities use null. Health is measured internally in quarter-heart units: 1 quarter heart = health_delta 1, half a heart = 2, three quarters = 3, and 1 full heart = 4. For health commands, use full_heal=true only when explicitly asked for full/max health; otherwise convert the GM's requested health change into quarter-heart units in health_delta. A Minor Healing Potion restores exactly 1 quarter heart. summary should plainly restate what will happen before execution.`,
+        instructions: `You are a command interpreter for a tabletop RPG GM. This is NOT judgment. Do not decide whether players deserve something and do not add achievements. Obey the GM's instruction as directly as possible and convert it into exactly one supported game action. Supported actions: loot_box, item, health. Recipient IDs MUST be copied exactly from the supplied character list. "Everyone", "all", or "party" means every supplied character ID. If the GM asks for a loot box containing a specific item, put that exact guaranteed item in action.item; it must not be randomized later. Keep item effects short and tabletop-friendly. Bronze is default unless the GM explicitly says Silver or Gold. If an item is a weapon use Weapon 1 as its slot; accessories use Accessory 1; armor needs the most plausible Head/Body/Hands/Feet slot; consumables and utilities use null. Health is measured in HP. health_delta is a direct HP change: 1 means 1 HP, 4 means 4 HP. If the GM uses legacy heart wording, treat 1 heart as 4 HP. For health commands, use full_heal=true only when explicitly asked for full/max health. A Minor Healing Potion restores exactly 1 HP. summary should plainly restate what will happen before execution.`,
         input: JSON.stringify(input),
         text: { format:{ type:'json_schema', name:'dungeon_command', strict:true, schema } },
       })
