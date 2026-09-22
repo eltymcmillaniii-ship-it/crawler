@@ -132,13 +132,6 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
-    if (description.length > 1200) {
-      return new Response(JSON.stringify({ error: 'Character description is too long. Keep it under 1200 characters.' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
     const fallback = {
       classes: fallbackClasses(description),
       suggested_stats: fallbackStats(description),
