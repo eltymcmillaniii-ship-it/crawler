@@ -947,14 +947,25 @@ function GM({gameId,characters,refresh}:{gameId:string;characters:Character[];re
     {msg&&<div className="status-message">{msg}</div>}
     {tab==='judge'&&<Judge gameId={gameId} characters={characters} refresh={refresh}/>}
     {tab==='story'&&<StoryLog gameId={gameId} characters={characters}/>}
-    {tab==='profiles'&&current&&<div className="gm-layout"><aside className="panel pad"><h3>Party</h3>{characters.map(c=><button className={`roster-card ${current.id===c.id?'selected':''}`} key={c.id} onClick={()=>setSelected(c.id)}>
+    {tab==='profiles'&&current&&<div className="gm-layout"><aside className="panel pad"><h3>Party</h3>{characters.map(c=>{const gearBonus=equippedStatBonuses(c);return <button className={`roster-card ${current.id===c.id?'selected':''}`} key={c.id} onClick={()=>setSelected(c.id)}>
       <div className="roster-avatar">
         {c.portraitUrl
           ? <img className="gm-roster-image" src={c.portraitUrl} alt={`${c.name} portrait`}/>
           : <Users size={28}/>}
       </div>
-      <div className="roster-copy"><strong>{c.name}</strong><div className="muted small">Level {c.level} · {c.background}</div><HealthBar c={c.currentHealth} m={c.maxHealth}/></div>
-    </button>)}</aside><main className="profile-stack">
+      <div className="roster-copy">
+        <strong>{c.name}</strong>
+        <div className="muted small">Level {c.level} · {c.background}</div>
+        <HealthBar c={c.currentHealth} m={c.maxHealth}/>
+        <div className="roster-core-stats" aria-label={`${c.name} current core stats`}>
+          {stats.map(stat=><div className={`roster-stat ${gearBonus[stat]>0?'has-gear-bonus':''}`} key={stat}>
+            <span>{stat.slice(0,3).toUpperCase()}</span>
+            <strong>+{c.stats[stat]+gearBonus[stat]}</strong>
+            {gearBonus[stat]>0&&<small>gear +{gearBonus[stat]}</small>}
+          </div>)}
+        </div>
+      </div>
+    </button>})}</aside><main className="profile-stack">
       <section className="panel pad gm-profile-hero">
         <div className="gm-profile-portrait">
           {current.portraitUrl
@@ -1014,16 +1025,21 @@ function GM({gameId,characters,refresh}:{gameId:string;characters:Character[];re
             {i.effect&&<div className="small gm-item-copy">{i.effect}</div>}
             {i.quirk&&<div className="muted small">Quirk: {i.quirk}</div>}
             <div className="gm-item-actions">
-              <span className="muted small">Core value</span>
-              <button className="button stat-step" onClick={()=>void rpc('gm_adjust_item_core_value',{p_character_item_id:i.id,p_delta:-1})}>−</button>
-              <strong>{i.coreValue}</strong>
-              <button className="button stat-step" onClick={()=>void rpc('gm_adjust_item_core_value',{p_character_item_id:i.id,p_delta:1})}>+</button>
-              <div className="gm-item-stat-bonuses">{stats.map(stat=><div className="gm-item-stat-bonus-row" key={stat}>
-                <span>{stat.slice(0,3).toUpperCase()}</span>
-                <button className="button stat-step" onClick={()=>void rpc('gm_adjust_item_stat_bonus',{p_character_item_id:i.id,p_stat:stat,p_delta:-1})}>−</button>
-                <strong>+{i.statBonuses[stat]}</strong>
-                <button className="button stat-step" onClick={()=>void rpc('gm_adjust_item_stat_bonus',{p_character_item_id:i.id,p_stat:stat,p_delta:1})}>+</button>
-              </div>)}</div>
+              <details className="gm-item-bonus-editor">
+                <summary>Item values & stat bonuses</summary>
+                <div className="gm-core-value-editor">
+                  <span className="muted small">Core value</span>
+                  <button className="button stat-step" onClick={e=>{e.preventDefault();void rpc('gm_adjust_item_core_value',{p_character_item_id:i.id,p_delta:-1})}}>−</button>
+                  <strong>{i.coreValue}</strong>
+                  <button className="button stat-step" onClick={e=>{e.preventDefault();void rpc('gm_adjust_item_core_value',{p_character_item_id:i.id,p_delta:1})}>+</button>
+                </div>
+                <div className="gm-item-stat-bonuses">{stats.map(stat=><div className="gm-item-stat-bonus-row" key={stat}>
+                  <span>{stat.slice(0,3).toUpperCase()}</span>
+                  <button className="button stat-step" onClick={e=>{e.preventDefault();void rpc('gm_adjust_item_stat_bonus',{p_character_item_id:i.id,p_stat:stat,p_delta:-1})}}>−</button>
+                  <strong>+{i.statBonuses[stat]}</strong>
+                  <button className="button stat-step" onClick={e=>{e.preventDefault();void rpc('gm_adjust_item_stat_bonus',{p_character_item_id:i.id,p_stat:stat,p_delta:1})}>+</button>
+                </div>)}</div>
+              </details>
               <button className="button" onClick={()=>void renameItem(i.id,i.name)}>Rename</button>
               <button className="button" onClick={()=>void rpc('gm_remove_character_item',{p_character_item_id:i.id})}>Remove</button>
             </div>
@@ -1037,12 +1053,21 @@ function GM({gameId,characters,refresh}:{gameId:string;characters:Character[];re
                 <div className="muted small">{i.type} · {i.rarity==='B'?'Bronze':i.rarity==='S'?'Silver':'Gold'} · Core {i.coreValue}{statBonusSummary(i.statBonuses)?` · ${statBonusSummary(i.statBonuses)}`:''}</div>
                 {i.effect&&<div className="small gm-item-copy">{i.effect}</div>}
                 <div className="gm-item-actions">
-                  <div className="gm-item-stat-bonuses">{stats.map(stat=><div className="gm-item-stat-bonus-row" key={stat}>
-                    <span>{stat.slice(0,3).toUpperCase()}</span>
-                    <button className="button stat-step" onClick={()=>void rpc('gm_adjust_item_stat_bonus',{p_character_item_id:i.id,p_stat:stat,p_delta:-1})}>−</button>
-                    <strong>+{i.statBonuses[stat]}</strong>
-                    <button className="button stat-step" onClick={()=>void rpc('gm_adjust_item_stat_bonus',{p_character_item_id:i.id,p_stat:stat,p_delta:1})}>+</button>
-                  </div>)}</div>
+                  <details className="gm-item-bonus-editor">
+                    <summary>Item values & stat bonuses</summary>
+                    <div className="gm-core-value-editor">
+                      <span className="muted small">Core value</span>
+                      <button className="button stat-step" onClick={e=>{e.preventDefault();void rpc('gm_adjust_item_core_value',{p_character_item_id:i.id,p_delta:-1})}}>−</button>
+                      <strong>{i.coreValue}</strong>
+                      <button className="button stat-step" onClick={e=>{e.preventDefault();void rpc('gm_adjust_item_core_value',{p_character_item_id:i.id,p_delta:1})}>+</button>
+                    </div>
+                    <div className="gm-item-stat-bonuses">{stats.map(stat=><div className="gm-item-stat-bonus-row" key={stat}>
+                      <span>{stat.slice(0,3).toUpperCase()}</span>
+                      <button className="button stat-step" onClick={e=>{e.preventDefault();void rpc('gm_adjust_item_stat_bonus',{p_character_item_id:i.id,p_stat:stat,p_delta:-1})}}>−</button>
+                      <strong>+{i.statBonuses[stat]}</strong>
+                      <button className="button stat-step" onClick={e=>{e.preventDefault();void rpc('gm_adjust_item_stat_bonus',{p_character_item_id:i.id,p_stat:stat,p_delta:1})}>+</button>
+                    </div>)}</div>
+                  </details>
                   <button className="button" onClick={()=>void renameItem(i.id,i.name)}>Rename</button>
                   <button className="button" onClick={()=>void rpc('gm_remove_character_item',{p_character_item_id:i.id})}>Remove</button>
                 </div>
