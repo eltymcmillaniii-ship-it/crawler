@@ -25,6 +25,7 @@ export type Character = {
   currentHealth: number
   maxHealth: number
   portraitUrl?: string | null
+  recoveryCode: string
   setupComplete: boolean
   stats: Record<'Strength' | 'Dexterity' | 'Intelligence' | 'Constitution' | 'Charisma', number>
   conditions: string[]
