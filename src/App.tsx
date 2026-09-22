@@ -110,7 +110,6 @@ function Setup({character,onDone}:{character:Character;onDone:()=>Promise<void>}
             className="character-description"
             rows={7}
             value={description}
-            maxLength={1200}
             onChange={e=>setDescription(e.target.value)}
             placeholder="Example: I’m a burned-out ER nurse who grew up hunting, can fix almost anything with duct tape, hates authority, and talks way too much when nervous."
           />
