@@ -10,6 +10,7 @@ export type Item = {
   slot?: GearSlot
   effect: string
   coreValue: number
+  constitutionBonus: number
   quirk?: string
   quantity?: number
   tradeable?: boolean
