@@ -608,6 +608,21 @@ function GM({gameId,characters,refresh}:{gameId:string;characters:Character[];re
               <button className="button" onClick={()=>void rpc('gm_remove_character_item',{p_character_item_id:i.id})}>Remove</button>
             </div>
           </div>):<div className="muted">Empty.</div>}
+          <h3>Equipped Gear</h3>
+          {gearSlots.map(slot=>{
+            const i=current.gear[slot]
+            return <div className={`tag-row gm-inventory-item ${i?`rarity-${i.rarity}`:''}`} key={slot}>
+              <div className="gm-item-heading"><strong>{i?.name??'Empty'}</strong><span className="pill">{slot}</span></div>
+              {i&&<>
+                <div className="muted small">{i.type} · {i.rarity==='B'?'Bronze':i.rarity==='S'?'Silver':'Gold'} · Core {i.coreValue}</div>
+                {i.effect&&<div className="small gm-item-copy">{i.effect}</div>}
+                <div className="gm-item-actions">
+                  <button className="button" onClick={()=>void renameItem(i.id,i.name)}>Rename</button>
+                  <button className="button" onClick={()=>void rpc('gm_remove_character_item',{p_character_item_id:i.id})}>Remove</button>
+                </div>
+              </>}
+            </div>
+          })}
         </section>
 
         <section className="panel pad">
