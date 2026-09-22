@@ -539,7 +539,7 @@ function Player({gameId,character,refresh}:{gameId:string;character:Character;re
         <div className="broadcast-kicker">{lootReveal.boxName}</div>
         <h2>{lootReveal.item.name}</h2>
         <p className="dungeon-announcement">{lootReveal.openingMessage}</p>
-        <div className="loot-broadcast-effect"><strong>{lootReveal.item.effect}</strong>{lootReveal.item.quirk&&<span>AI NOTE: {lootReveal.item.quirk}</span>}</div>
+        <div className="loot-broadcast-effect"><strong>{lootReveal.item.effect}</strong>{lootReveal.item.quirk&&<span>AI NOTE: {lootReveal.item.quirk}</span>}{statBonusSummary(lootReveal.item.statBonuses)&&<span className="item-stat-bonus-summary">EQUIPPED BONUS · {statBonusSummary(lootReveal.item.statBonuses)}</span>}</div>
         <button className="button wide" onClick={()=>setLootReveal(null)}>Dismiss Broadcast</button>
       </div>}
       <div className="card-grid loot-box-grid">{character.boxes.length?character.boxes.map(b=><div className={`item-card loot-box-card rarity-${b.rarity}`} key={b.id}><div className="loot-box-rarity">{b.rarity==='B'?'BRONZE':b.rarity==='S'?'SILVER':'GOLD'} CACHE</div><strong>🎁 {b.name}</strong><div className="muted small">Authorized for immediate opening. Consequences not included.</div><button className="button primary wide" disabled={busy} onClick={()=>void openBox(b.id)}>{busy?'Decrypting…':'Open Box'}</button></div>):<div className="muted">No unopened boxes. The Dungeon is disappointed in your earning potential.</div>}</div>
@@ -571,6 +571,7 @@ type DungeonCommand = {
       slot: GearSlot|null
       effect: string
       quirk: string
+      stat_bonuses: Character['stats']
     }
     health_delta: number
     full_heal: boolean
