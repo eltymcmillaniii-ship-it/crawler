@@ -100,5 +100,6 @@ export type LootOpenResult = {
     slot?: GearSlot
     effect: string
     quirk: string
+    statBonuses: Record<'Strength'|'Dexterity'|'Intelligence'|'Constitution'|'Charisma', number>
   }
 }
