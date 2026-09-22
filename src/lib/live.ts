@@ -228,21 +228,77 @@ function itemState(character: Character) {
   return map
 }
 
-async function uploadDataUrlPortrait(userId: string, characterId: string, dataUrl: string) {
+async function normalizePortraitFile(file: File): Promise<Blob> {
+  if (!file.type.startsWith('image/')) throw new Error('Choose an image file.')
+
+  const objectUrl = URL.createObjectURL(file)
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = new Image()
+      img.onload = () => resolve(img)
+      img.onerror = () => reject(new Error('That image format could not be read by this browser. Try JPG or PNG.'))
+      img.src = objectUrl
+    })
+
+    const maxDimension = 1600
+    const scale = Math.min(1, maxDimension / Math.max(image.naturalWidth, image.naturalHeight))
+    const width = Math.max(1, Math.round(image.naturalWidth * scale))
+    const height = Math.max(1, Math.round(image.naturalHeight * scale))
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error('Could not prepare that image for upload.')
+    ctx.drawImage(image, 0, 0, width, height)
+
+    return await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Could not prepare that image for upload.')), 'image/jpeg', 0.86)
+    })
+  } finally {
+    URL.revokeObjectURL(objectUrl)
+  }
+}
+
+export async function uploadCharacterPortrait(characterId: string, file: File): Promise<string> {
   const sb = client()
-  const response = await fetch(dataUrl)
-  const blob = await response.blob()
-  const ext = blob.type === 'image/png' ? 'png' : blob.type === 'image/webp' ? 'webp' : 'jpg'
-  const path = `${userId}/${characterId}-${Date.now()}.${ext}`
-  const { error } = await sb.storage.from('character-portraits').upload(path, blob, { upsert: true, contentType: blob.type || 'image/jpeg' })
-  if (error) throw error
-  return sb.storage.from('character-portraits').getPublicUrl(path).data.publicUrl
+  const { data: userData, error: userError } = await sb.auth.getUser()
+  if (userError) throw userError
+  const user = userData.user
+  if (!user) throw new Error('You need to be signed in to upload a player image.')
+
+  const blob = await normalizePortraitFile(file)
+  if (blob.size > 5 * 1024 * 1024) throw new Error('The processed player image is still too large. Try a smaller image.')
+
+  const path = `${user.id}/${characterId}-${Date.now()}.jpg`
+  const bucket = sb.storage.from('character-portraits')
+  const { error: uploadError } = await bucket.upload(path, blob, {
+    contentType: 'image/jpeg',
+    cacheControl: '3600',
+    upsert: false,
+  })
+  if (uploadError) throw new Error(`Image upload failed: ${uploadError.message}`)
+
+  const publicUrl = bucket.getPublicUrl(path).data.publicUrl
+  const { data: updated, error: updateError } = await sb
+    .from('characters')
+    .update({ portrait_url: publicUrl })
+    .eq('id', characterId)
+    .eq('user_id', user.id)
+    .select('id')
+    .maybeSingle()
+
+  if (updateError || !updated) {
+    await bucket.remove([path]).catch(() => undefined)
+    if (updateError) throw new Error(`Image uploaded, but the crawler profile could not be updated: ${updateError.message}`)
+    throw new Error('This crawler is not owned by the current player account.')
+  }
+
+  return publicUrl
 }
 
 export async function persistCharacterDiff(previous: Character, next: Character, actingUserId: string) {
   const sb = client()
-  let portraitUrl = next.portraitUrl ?? null
-  if (portraitUrl?.startsWith('data:')) portraitUrl = await uploadDataUrlPortrait(actingUserId, next.id, portraitUrl)
+  const portraitUrl = next.portraitUrl ?? null
 
   const coreChanged = previous.name !== next.name || previous.background !== next.background || previous.level !== next.level ||
     previous.currentHealth !== next.currentHealth || previous.maxHealth !== next.maxHealth || previous.portraitUrl !== portraitUrl ||
