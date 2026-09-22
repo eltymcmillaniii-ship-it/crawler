@@ -1,7 +1,12 @@
 import type { Character, Item } from './types'
 
 let n = 1
-const item = (x: Omit<Item, 'id' | 'coreValue'> & { coreValue?: number }): Item => ({ ...x, coreValue: x.coreValue ?? 0, id: `demo-item-${n++}` })
+const item = (x: Omit<Item, 'id' | 'coreValue' | 'statBonuses'> & { coreValue?: number; statBonuses?: Item['statBonuses'] }): Item => ({
+  ...x,
+  coreValue: x.coreValue ?? 0,
+  statBonuses: x.statBonuses ?? { Strength:0, Dexterity:0, Intelligence:0, Constitution:0, Charisma:0 },
+  id: `demo-item-${n++}`,
+})
 
 const emptyGear = () => ({
   Head: null, Body: null, Hands: null, Feet: null,
