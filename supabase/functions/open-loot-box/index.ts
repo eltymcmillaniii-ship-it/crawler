@@ -15,7 +15,7 @@ const schema = {
     slot: {
       anyOf: [
         { type: 'null' },
-        { type: 'string', enum: ['Head','Body','Hands','Feet','Weapon 1','Weapon 2','Accessory 1','Accessory 2'] },
+        { type: 'string', enum: ['Head','Shirt','Pants','Hands','Feet','Weapon 1','Weapon 2','Accessory 1','Accessory 2'] },
       ],
     },
     effect: { type: 'string' },
@@ -40,7 +40,7 @@ const schema = {
 type Reward = {
   name: string
   item_type: 'Weapon'|'Armor'|'Accessory'|'Consumable'|'Utility'|'Quest'|'AI Generated'
-  slot: 'Head'|'Body'|'Hands'|'Feet'|'Weapon 1'|'Weapon 2'|'Accessory 1'|'Accessory 2'|null
+  slot: 'Head'|'Shirt'|'Pants'|'Hands'|'Feet'|'Weapon 1'|'Weapon 2'|'Accessory 1'|'Accessory 2'|null
   effect: string
   quirk: string
   stat_bonuses?: { Strength:number; Dexterity:number; Intelligence:number; Constitution:number; Charisma:number }
@@ -60,7 +60,7 @@ const bronze: Reward[] = [
 
 const silver: Reward[] = [
   { name:'Coward’s Blade', item_type:'Weapon', slot:'Weapon 1', effect:'Becomes especially effective when used while retreating, escaping, or protecting an exit.', quirk:'The blade hums approvingly whenever you run away.', opening_message:'SILVER BOX! Heroism is optional. Survival has better benefits.' },
-  { name:'Spider-Silk Vest', item_type:'Armor', slot:'Body', effect:'Once per encounter, reduce the effect of a hit, fall, or entangling hazard.', quirk:'Tiny spiders appear to be emotionally invested in your survival.', opening_message:'Fashionable, flexible, and only slightly haunted by arachnids.' },
+  { name:'Spider-Silk Vest', item_type:'Armor', slot:'Shirt', effect:'Once per encounter, reduce the effect of a hit, fall, or entangling hazard.', quirk:'Tiny spiders appear to be emotionally invested in your survival.', opening_message:'Fashionable, flexible, and only slightly haunted by arachnids.' },
   { name:'Ring of Bad Decisions', item_type:'Accessory', slot:'Accessory 1', effect:'Once per session, gain an edge on a reckless action you knowingly should not attempt.', quirk:'Warms noticeably whenever someone says “that’s a terrible idea.”', opening_message:'The Dungeon supports your worst instincts with jewelry.' },
   { name:'Gloves of Unscheduled Maintenance', item_type:'Armor', slot:'Hands', effect:'Once per encounter, quickly manipulate, disable, or jury-rig a simple mechanism.', quirk:'Leave greasy fingerprints even when perfectly clean.', opening_message:'For the crawler who sees a machine and immediately voids the warranty.' },
   { name:'Mimic Detector, Probably', item_type:'Utility', slot:null, effect:'Once per room, test one mundane object for suspicious dungeon behavior.', quirk:'It is wrong often enough to remain exciting.', opening_message:'A sophisticated scientific instrument consisting mostly of anxiety.' },
@@ -165,7 +165,7 @@ Deno.serve(async (req) => {
         item_type: (['Weapon','Armor','Accessory','Consumable','Utility','Quest','AI Generated'].includes(String((preset as any).item_type))
           ? String((preset as any).item_type)
           : 'AI Generated') as Reward['item_type'],
-        slot: (['Head','Body','Hands','Feet','Weapon 1','Weapon 2','Accessory 1','Accessory 2'].includes(String((preset as any).slot))
+        slot: (['Head','Shirt','Pants','Hands','Feet','Weapon 1','Weapon 2','Accessory 1','Accessory 2'].includes(String((preset as any).slot))
           ? String((preset as any).slot)
           : null) as Reward['slot'],
         effect: String((preset as any).effect ?? ''),
