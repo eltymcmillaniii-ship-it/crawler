@@ -130,6 +130,9 @@ function fallbackVerdict(body: any) {
       name: '',
       effect: '',
       quirk: '',
+      item_type: 'AI Generated',
+      slot: null,
+      stat_bonuses: { Strength:0, Dexterity:0, Intelligence:0, Constitution:0, Charisma:0 },
     },
     reasoning_for_gm: 'Fallback judgment used because the AI judge was unavailable. Nothing in the event clearly justified a reward.',
   }
