@@ -4,7 +4,7 @@ import type { Character, DungeonVerdict } from './lib/types'
 import { supabase, supabaseConfigured } from './lib/supabase'
 import {
   applyDungeonVerdict, completeCharacterSetup, createGame, createGmLogin, deleteGame, ensureAnonymousUser, joinGame,
-  listMyGames, loadCharacters, openLootBox, persistCharacterDiff, signInGm, signOutUser, subscribeToGame,
+  listMyGames, loadCharacters, openLootBox, persistCharacterDiff, signInGm, signOutUser, subscribeToGame, uploadCharacterPortrait,
 } from './lib/live'
 import type { GameSummary } from './lib/live'
 
@@ -168,23 +168,17 @@ function Player({character,refresh}:{character:Character;refresh:()=>Promise<voi
   async function uploadPortrait(file:File){
     if(!file)return
     setMsg('')
-    if(!['image/jpeg','image/png','image/webp'].includes(file.type)){
-      setMsg('Use a JPG, PNG, or WebP image.')
+    if(!file.type.startsWith('image/')){
+      setMsg('Choose an image file.')
       return
     }
-    if(file.size>5*1024*1024){
-      setMsg('Player images must be 5 MB or smaller.')
+    if(file.size>20*1024*1024){
+      setMsg('Choose an image smaller than 20 MB.')
       return
     }
     setUploadingPortrait(true)
     try{
-      const dataUrl=await new Promise<string>((resolve,reject)=>{
-        const reader=new FileReader()
-        reader.onload=()=>resolve(String(reader.result))
-        reader.onerror=()=>reject(new Error('Could not read that image.'))
-        reader.readAsDataURL(file)
-      })
-      await persistCharacterDiff(character,{...character,portraitUrl:dataUrl},character.userId)
+      await uploadCharacterPortrait(character.id,file)
       await refresh()
       setMsg('Player image updated.')
     }catch(e){
@@ -222,12 +216,12 @@ function Player({character,refresh}:{character:Character;refresh:()=>Promise<voi
           {uploadingPortrait?'Uploading…':character.portraitUrl?'Change Player Image':'Upload Player Image'}
           <input
             type="file"
-            accept="image/jpeg,image/png,image/webp"
+            accept="image/*"
             disabled={uploadingPortrait}
             onChange={e=>{const file=e.target.files?.[0];if(file)void uploadPortrait(file);e.currentTarget.value=''}}
           />
         </label>
-        <div className="muted small portrait-help">JPG, PNG, or WebP · max 5 MB</div>
+        <div className="muted small portrait-help">Most image formats · automatically resized for upload</div>
       </section>
       <div className="crawler-details">
         <div className="two-col"><section className="panel pad"><h3><Brain size={18}/>Stats</h3><div className="stats-grid">{stats.map(s=><div className="stat" key={s}><span>{s}</span><strong>+{character.stats[s]}</strong>{character.unspentStatPoints>0&&<button className="button" disabled={busy} onClick={()=>void spend(s)}>+1</button>}</div>)}</div><h3>Conditions</h3><div className="chips">{character.conditions.length?character.conditions.map(x=><span className="pill" key={x}>{x}</span>):<span className="muted">None</span>}</div></section><section className="panel pad"><h3>Skills</h3>{character.skills.map(s=><div className="line-row" key={s.name}><span>{s.name}</span><strong>+{s.rank}</strong></div>)}<h3>Perks</h3>{character.perks.length?character.perks.map(x=><div className="tag-row" key={x}>{x}</div>):<div className="muted">None yet.</div>}</section></div>
