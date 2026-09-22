@@ -17,9 +17,13 @@ function compatibleEquipSlots(slot?: GearSlot): GearSlot[] {
   if (slot === 'Accessory 1' || slot === 'Accessory 2') return ['Accessory 1','Accessory 2']
   return [slot]
 }
-function hpDeltaLabel(amount:number){
-  const sign=amount>0?'+':amount<0?'−':''
-  return `${sign}${Math.abs(amount)} HP`
+function hpValue(units:number){
+  const value=units/4
+  return Number.isInteger(value)?String(value):value.toFixed(2).replace(/0$/,'')
+}
+function hpDeltaLabel(units:number){
+  const sign=units>0?'+':units<0?'−':''
+  return `${sign}${hpValue(Math.abs(units))} HP`
 }
 function equippedConstitutionBonus(character:Character){
   return Object.values(character.gear).reduce((sum,item)=>sum+(item?.constitutionBonus??0),0)
@@ -28,12 +32,11 @@ function HealthBar({c,m,compact=false}:{c:number;m:number;compact?:boolean}) {
   const current=Math.max(0,Math.min(c,m))
   const pct=m>0?Math.max(0,Math.min(100,(current/m)*100)):0
   const state=current<=0?'empty':pct<=25?'critical':pct<=50?'warning':'healthy'
-  return <div className={`health-bar-wrap ${compact?'compact-health':''}`} aria-label={`${current} of ${m} HP`}>
+  return <div className={`health-bar-wrap ${compact?'compact-health':''}`} aria-label={`${hpValue(current)} of ${hpValue(m)} HP`}>
     <div className="health-bar-track">
       <div className={`health-bar-fill health-${state}`} style={{width:`${pct}%`}}/>
-      <div className="health-bar-grid" aria-hidden="true"/>
     </div>
-    <span className="health-bar-readout"><strong>{current}</strong><span>/ {m} HP</span></span>
+    <span className="health-bar-readout"><strong>{hpValue(current)}</strong><span>/ {hpValue(m)} HP</span></span>
   </div>
 }
 
@@ -366,7 +369,7 @@ function Player({gameId,character,refresh}:{gameId:string;character:Character;re
     try{
       const healed=await useCharacterItem(itemId)
       await refresh()
-      setMsg(`${itemName} used. Restored ${healed} HP.`)
+      setMsg(`${itemName} used. Restored ${hpValue(healed)} HP.`)
     }catch(e){setMsg(e instanceof Error?e.message:'Could not use item')}finally{setBusy(false)}
   }
   return <>
@@ -397,7 +400,7 @@ function Player({gameId,character,refresh}:{gameId:string;character:Character;re
         <section className="panel pad player-stat-panel">
           <div className="section-title"><h3><Brain size={18}/>Core Stats</h3>{character.unspentStatPoints>0&&<span className="pill">{character.unspentStatPoints} point{character.unspentStatPoints===1?'':'s'} available</span>}</div>
           <div className="player-stats-grid">{stats.map(s=><div className="stat player-stat-card" key={s}><span>{s}</span><strong>+{s==='Constitution'?totalConstitution:character.stats[s]}</strong>{s==='Constitution'&&equippedConBonus>0&&<div className="stat-bonus-note">Base {character.stats.Constitution} + Gear {equippedConBonus}</div>}{character.unspentStatPoints>0&&<button className="button stat-spend-button" disabled={busy} onClick={()=>void spend(s)}>Spend +1</button>}</div>)}</div>
-          <div className="health-formula-note"><strong>{totalConstitution} total Constitution × 4</strong><span>= {character.maxHealth} max HP</span></div>
+          <div className="health-formula-note"><strong>{totalConstitution} total Constitution × 4</strong><span>= {hpValue(character.maxHealth)} max HP</span></div>
           <h3>Conditions</h3>
           <div className="chips">{character.conditions.length?character.conditions.map(x=><span className="pill" key={x}>{x}</span>):<span className="muted">None</span>}</div>
         </section>
@@ -578,7 +581,7 @@ function Judge({gameId,characters,refresh}:{gameId:string;characters:Character[]
     if(!supabase||!event.trim())return
     setBusy(true);setMsg('')
     try{
-      const {data,error}=await supabase.functions.invoke('dungeon-judge',{body:{gameId,event,tone:'unhinged',frequency:'balanced',characters:characters.map(c=>({id:c.id,name:c.name,level:c.level,stats:c.stats,health:[c.currentHealth,c.maxHealth],skills:c.skills,gear:Object.values(c.gear).filter(Boolean)}))}})
+      const {data,error}=await supabase.functions.invoke('dungeon-judge',{body:{gameId,event,tone:'unhinged',frequency:'balanced',characters:characters.map(c=>({id:c.id,name:c.name,level:c.level,stats:c.stats,health:[c.currentHealth/4,c.maxHealth/4],skills:c.skills,gear:Object.values(c.gear).filter(Boolean)}))}})
       if(error){
         let detail=error.message
         const response=(error as any).context as Response | undefined
@@ -964,12 +967,12 @@ function GM({gameId,characters,refresh}:{gameId:string;characters:Character[];re
             <button className="button primary" onClick={()=>void rpc('gm_level_up',{p_character_id:current.id,p_levels:1,p_points_per_level:1})}>Level Up +1</button>
           </div>
           <div className="gm-health-controls">
-            <div className="gm-health-label"><span>Health Adjustment</span><HealthBar c={current.currentHealth} m={current.maxHealth}/><small>{currentTotalConstitution} total CON × 4 = {current.maxHealth} max HP</small></div>
+            <div className="gm-health-label"><span>Health Adjustment</span><HealthBar c={current.currentHealth} m={current.maxHealth}/><small>{currentTotalConstitution} total CON × 4 = {hpValue(current.maxHealth)} max HP</small></div>
             <div className="gm-health-buttons">
-              <button className="button" onClick={()=>void rpc('gm_adjust_health',{p_character_id:current.id,p_quarters:-4})}>−4 HP</button>
-              <button className="button" onClick={()=>void rpc('gm_adjust_health',{p_character_id:current.id,p_quarters:-1})}>−1 HP</button>
-              <button className="button" onClick={()=>void rpc('gm_adjust_health',{p_character_id:current.id,p_quarters:1})}>+1 HP</button>
-              <button className="button" onClick={()=>void rpc('gm_adjust_health',{p_character_id:current.id,p_quarters:4})}>+4 HP</button>
+              <button className="button" onClick={()=>void rpc('gm_adjust_health',{p_character_id:current.id,p_quarters:-4})}>−1 HP</button>
+              <button className="button" onClick={()=>void rpc('gm_adjust_health',{p_character_id:current.id,p_quarters:-1})}>−0.25 HP</button>
+              <button className="button" onClick={()=>void rpc('gm_adjust_health',{p_character_id:current.id,p_quarters:1})}>+0.25 HP</button>
+              <button className="button" onClick={()=>void rpc('gm_adjust_health',{p_character_id:current.id,p_quarters:4})}>+1 HP</button>
             </div>
           </div>
         </div>
