@@ -756,6 +756,7 @@ function StoryLog({gameId,characters}:{gameId:string;characters:Character[]}) {
   const [loading,setLoading]=useState(true)
   const [error,setError]=useState('')
   const [liveStatus,setLiveStatus]=useState<'connecting'|'live'|'reconnecting'>('connecting')
+  const [liveStatus,setLiveStatus]=useState<'connecting'|'live'|'reconnecting'>('connecting')
 
   async function reload(){
     setError('')
