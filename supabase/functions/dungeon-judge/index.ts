@@ -34,7 +34,7 @@ const schema = {
         slot: {
           anyOf: [
             { type: 'null' },
-            { type: 'string', enum: ['Head','Body','Hands','Feet','Weapon 1','Weapon 2','Accessory 1','Accessory 2'] },
+            { type: 'string', enum: ['Head','Shirt','Pants','Hands','Feet','Weapon 1','Weapon 2','Accessory 1','Accessory 2'] },
           ],
         },
         stat_bonuses: {
