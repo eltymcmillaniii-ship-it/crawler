@@ -82,3 +82,11 @@
 .game-open-card{flex:1}
 .game-delete-button{margin-top:0!important;flex:none}
 @media(max-width:520px){.game-card-shell{flex-direction:column}.game-delete-button{width:100%}}
+
+.gm-login-panel{margin-bottom:14px}
+.gm-login-copy p{margin:6px 0 14px;max-width:760px}
+.gm-login-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.gm-login-fields label{margin:0!important}
+.gm-login-actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 8px}
+.signed-in-panel{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-bottom:14px}
+@media(max-width:620px){.gm-login-fields{grid-template-columns:1fr}.gm-login-actions .button{width:100%}.signed-in-panel{align-items:stretch;flex-direction:column}.signed-in-panel .button{width:100%}}
