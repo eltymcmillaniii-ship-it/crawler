@@ -689,7 +689,7 @@ function Judge({gameId,characters,refresh}:{gameId:string;characters:Character[]
       <div>
         <div className="broadcast-kicker">GM OVERRIDE // DIRECT CONTROL</div>
         <h2>DUNGEON COMMAND</h2>
-        <p className="muted small">This does not judge the players. It obeys you. Use it to hand out rewards, issue specific loot, or directly change health.</p>
+        <p className="muted small">This does not judge the players. Give it the general idea and the Dungeon AI will turn it into a polished, sarcastic command while preserving your important constraints.</p>
       </div>
       <span className="command-badge">NO JUDGMENT</span>
     </div>
@@ -712,6 +712,7 @@ function Judge({gameId,characters,refresh}:{gameId:string;characters:Character[]
         <div><div className="broadcast-kicker">COMMAND PREVIEW</div><h3>{commandPreview.summary}</h3></div>
         <span className="pill">{commandPreview.recipients.length} recipient{commandPreview.recipients.length===1?'':'s'}</span>
       </div>
+      {commandPreview.action.opening_message&&<div className="command-ai-broadcast"><span>DUNGEON AI</span><strong>{commandPreview.action.opening_message}</strong></div>}
       <div className="command-recipient-list">
         {commandPreview.recipients.length
           ? commandPreview.recipients.map(id=><span className="pill" key={id}>{characters.find(c=>c.id===id)?.name??'Unknown Crawler'}</span>)
@@ -740,7 +741,7 @@ function Judge({gameId,characters,refresh}:{gameId:string;characters:Character[]
         <strong>{commandPreview.action.full_heal?'Restore to full health':hpDeltaLabel(commandPreview.action.health_delta)}</strong>
       </div>}
 
-      <div className="command-warning">This bypasses Dungeon judgment and will apply exactly as shown.</div>
+      <div className="command-warning">This bypasses Dungeon judgment. The AI may creatively interpret the idea, but execution applies exactly what is shown in this preview.</div>
       <button className="button primary wide command-execute-button" disabled={commandBusy||!commandPreview.recipients.length} onClick={()=>void executeCommand()}>
         EXECUTE GM COMMAND
       </button>
