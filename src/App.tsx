@@ -280,7 +280,18 @@ function Player({gameId,character,refresh}:{gameId:string;character:Character;re
         <div className="muted small portrait-help">Most image formats · automatically resized for upload</div>
       </section>
       <div className="crawler-details">
-        <div className="two-col"><section className="panel pad"><h3><Brain size={18}/>Stats</h3><div className="stats-grid">{stats.map(s=><div className="stat" key={s}><span>{s}</span><strong>+{character.stats[s]}</strong>{character.unspentStatPoints>0&&<button className="button" disabled={busy} onClick={()=>void spend(s)}>+1</button>}</div>)}</div><h3>Conditions</h3><div className="chips">{character.conditions.length?character.conditions.map(x=><span className="pill" key={x}>{x}</span>):<span className="muted">None</span>}</div></section><section className="panel pad"><h3>Skills</h3>{character.skills.map(s=><div className="line-row" key={s.name}><span>{s.name}</span><strong>+{s.rank}</strong></div>)}<h3>Perks</h3>{character.perks.length?character.perks.map(x=><div className="tag-row" key={x}>{x}</div>):<div className="muted">None yet.</div>}</section></div>
+        <section className="panel pad player-stat-panel">
+          <div className="section-title"><h3><Brain size={18}/>Core Stats</h3>{character.unspentStatPoints>0&&<span className="pill">{character.unspentStatPoints} point{character.unspentStatPoints===1?'':'s'} available</span>}</div>
+          <div className="player-stats-grid">{stats.map(s=><div className="stat player-stat-card" key={s}><span>{s}</span><strong>+{character.stats[s]}</strong>{character.unspentStatPoints>0&&<button className="button stat-spend-button" disabled={busy} onClick={()=>void spend(s)}>Spend +1</button>}</div>)}</div>
+          <h3>Conditions</h3>
+          <div className="chips">{character.conditions.length?character.conditions.map(x=><span className="pill" key={x}>{x}</span>):<span className="muted">None</span>}</div>
+        </section>
+        <section className="panel pad player-skills-panel">
+          <div className="player-skills-columns">
+            <div><h3>Skills</h3>{character.skills.length?character.skills.map(s=><div className="line-row" key={s.name}><span>{s.name}</span><strong>+{s.rank}</strong></div>):<div className="muted">None yet.</div>}</div>
+            <div><h3>Perks</h3>{character.perks.length?character.perks.map(x=><div className="tag-row" key={x}>{x}</div>):<div className="muted">None yet.</div>}</div>
+          </div>
+        </section>
       </div>
     </div>}
     {tab==='party'&&<section className="panel pad party-directory-panel">
@@ -625,7 +636,26 @@ function GM({gameId,characters,refresh}:{gameId:string;characters:Character[];re
           <button className="button" onClick={()=>void regenerateRecoveryCode(current)}>Regenerate</button>
         </div>
       </section>
-      <section className="panel pad"><div className="quick-actions"><button className="button primary" onClick={()=>void rpc('gm_level_up',{p_character_id:current.id,p_levels:1,p_points_per_level:1})}>Level Up +1</button><button className="button" onClick={()=>void supabase?.from('characters').update({current_health:Math.max(0,current.currentHealth-1)}).eq('id',current.id).then(()=>refresh())}>−1 Health</button><button className="button" onClick={()=>void supabase?.from('characters').update({current_health:Math.min(current.maxHealth,current.currentHealth+1)}).eq('id',current.id).then(()=>refresh())}>+1 Health</button></div><div className="muted small">Unspent stat points: {current.unspentStatPoints}</div><div className="stats-grid">{stats.map(s=><div className="stat" key={s}><span>{s}</span><strong>+{current.stats[s]}</strong><div className="inline-actions"><button className="button" onClick={()=>void rpc('gm_adjust_stat',{p_character_id:current.id,p_stat:s,p_delta:-1})}>−</button><button className="button" onClick={()=>void rpc('gm_adjust_stat',{p_character_id:current.id,p_stat:s,p_delta:1})}>+</button></div></div>)}</div></section>
+      <section className="panel pad gm-core-stats-panel">
+        <div className="section-title">
+          <div><div className="eyebrow">GM Controls</div><h3>Core Stats</h3></div>
+          <span className="pill">{current.unspentStatPoints} unspent</span>
+        </div>
+        <div className="quick-actions">
+          <button className="button primary" onClick={()=>void rpc('gm_level_up',{p_character_id:current.id,p_levels:1,p_points_per_level:1})}>Level Up +1</button>
+          <button className="button" onClick={()=>void supabase?.from('characters').update({current_health:Math.max(0,current.currentHealth-1)}).eq('id',current.id).then(()=>refresh())}>−1 Health</button>
+          <button className="button" onClick={()=>void supabase?.from('characters').update({current_health:Math.min(current.maxHealth,current.currentHealth+1)}).eq('id',current.id).then(()=>refresh())}>+1 Health</button>
+        </div>
+        <div className="gm-stats-grid">{stats.map(s=><div className="gm-stat-card" key={s}>
+          <span>{s}</span>
+          <strong>+{current.stats[s]}</strong>
+          <div className="gm-stat-controls">
+            <button className="button stat-step" aria-label={`Decrease ${s}`} onClick={()=>void rpc('gm_adjust_stat',{p_character_id:current.id,p_stat:s,p_delta:-1})}>−</button>
+            <span className="muted small">Adjust</span>
+            <button className="button stat-step" aria-label={`Increase ${s}`} onClick={()=>void rpc('gm_adjust_stat',{p_character_id:current.id,p_stat:s,p_delta:1})}>+</button>
+          </div>
+        </div>)}</div>
+      </section>
       <div className="two-col">
         <section className="panel pad">
           <h3>Inventory</h3>
