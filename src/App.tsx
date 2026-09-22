@@ -25,8 +25,18 @@ function hpDeltaLabel(units:number){
   const sign=units>0?'+':units<0?'−':''
   return `${sign}${hpValue(Math.abs(units))} HP`
 }
-function equippedConstitutionBonus(character:Character){
-  return Object.values(character.gear).reduce((sum,item)=>sum+(item?.constitutionBonus??0),0)
+type CoreStat = (typeof stats)[number]
+const zeroStatBonuses=():Character['stats']=>({Strength:0,Dexterity:0,Intelligence:0,Constitution:0,Charisma:0})
+function equippedStatBonuses(character:Character){
+  return Object.values(character.gear).reduce((total,item)=>{
+    if(!item)return total
+    for(const stat of stats) total[stat]+=item.statBonuses?.[stat]??0
+    return total
+  },zeroStatBonuses())
+}
+function statBonusSummary(bonuses:Character['stats']){
+  const parts=stats.filter(stat=>(bonuses?.[stat]??0)>0).map(stat=>`${stat.slice(0,3).toUpperCase()} +${bonuses[stat]}`)
+  return parts.join(' · ')
 }
 function HealthBar({c,m,compact=false}:{c:number;m:number;compact?:boolean}) {
   const current=Math.max(0,Math.min(c,m))
@@ -201,8 +211,8 @@ function Player({gameId,character,refresh}:{gameId:string;character:Character;re
   const [offeredItemId,setOfferedItemId]=useState('')
   const [requestedItemId,setRequestedItemId]=useState('')
   const [tradeLoading,setTradeLoading]=useState(false)
-  const equippedConBonus=equippedConstitutionBonus(character)
-  const totalConstitution=character.stats.Constitution+equippedConBonus
+  const gearStatBonuses=equippedStatBonuses(character)
+  const totalConstitution=character.stats.Constitution+gearStatBonuses.Constitution
 
   async function openParty(){
     setTab('party')
@@ -399,7 +409,7 @@ function Player({gameId,character,refresh}:{gameId:string;character:Character;re
       <div className="crawler-details">
         <section className="panel pad player-stat-panel">
           <div className="section-title"><h3><Brain size={18}/>Core Stats</h3>{character.unspentStatPoints>0&&<span className="pill">{character.unspentStatPoints} point{character.unspentStatPoints===1?'':'s'} available</span>}</div>
-          <div className="player-stats-grid">{stats.map(s=><div className="stat player-stat-card" key={s}><span>{s}</span><strong>+{s==='Constitution'?totalConstitution:character.stats[s]}</strong>{s==='Constitution'&&equippedConBonus>0&&<div className="stat-bonus-note">Base {character.stats.Constitution} + Gear {equippedConBonus}</div>}{character.unspentStatPoints>0&&<button className="button stat-spend-button" disabled={busy} onClick={()=>void spend(s)}>Spend +1</button>}</div>)}</div>
+          <div className="player-stats-grid">{stats.map(s=>{const gearBonus=gearStatBonuses[s];const total=character.stats[s]+gearBonus;return <div className="stat player-stat-card" key={s}><span>{s}</span><strong>+{total}</strong>{gearBonus>0&&<div className="stat-bonus-note">Base {character.stats[s]} + Gear {gearBonus}</div>}{character.unspentStatPoints>0&&<button className="button stat-spend-button" disabled={busy} onClick={()=>void spend(s)}>Spend +1</button>}</div>})}</div>
           <div className="health-formula-note"><strong>{totalConstitution} total Constitution × 4</strong><span>= {hpValue(character.maxHealth)} max HP</span></div>
           <h3>Conditions</h3>
           <div className="chips">{character.conditions.length?character.conditions.map(x=><span className="pill" key={x}>{x}</span>):<span className="muted">None</span>}</div>
@@ -500,7 +510,7 @@ function Player({gameId,character,refresh}:{gameId:string;character:Character;re
         const slots=compatibleEquipSlots(i.slot)
         return <div className={`item-card rarity-${i.rarity}`} key={i.id}>
           <strong>{i.name}</strong>
-          <div className="muted small">{i.rarity==='B'?'Bronze':i.rarity==='S'?'Silver':'Gold'} · {i.type} · Core {i.coreValue}{(i.constitutionBonus??0)>0?` · CON +${i.constitutionBonus??0} when equipped`:''}{(i.quantity??1)>1?` ×${i.quantity}`:''}</div>
+          <div className="muted small">{i.rarity==='B'?'Bronze':i.rarity==='S'?'Silver':'Gold'} · {i.type} · Core {i.coreValue}{statBonusSummary(i.statBonuses)?` · ${statBonusSummary(i.statBonuses)} when equipped`:''}{(i.quantity??1)>1?` ×${i.quantity}`:''}</div>
           <div>{i.effect}</div>
           {i.quirk&&<div className="muted small">Quirk: {i.quirk}</div>}
           {i.type==='Consumable'
@@ -516,7 +526,7 @@ function Player({gameId,character,refresh}:{gameId:string;character:Character;re
         return <div className={`item-card equipped-item-card ${i?`rarity-${i.rarity}`:''}`} key={slot}>
           <div className="gear-label">{slot}</div>
           <strong>{i?.name??'Empty'}</strong>
-          {i&&<><div className="muted small">{i.rarity==='B'?'Bronze':i.rarity==='S'?'Silver':'Gold'} · Core {i.coreValue}{(i.constitutionBonus??0)>0?` · CON +${i.constitutionBonus??0}`:''}</div><div className="muted small">{i.effect}</div><button className="button wide unequip-button" disabled={busy} onClick={()=>void unequip(i.id)}>Unequip</button></>}
+          {i&&<><div className="muted small">{i.rarity==='B'?'Bronze':i.rarity==='S'?'Silver':'Gold'} · Core {i.coreValue}{statBonusSummary(i.statBonuses)?` · ${statBonusSummary(i.statBonuses)}`:''}</div><div className="muted small">{i.effect}</div><button className="button wide unequip-button" disabled={busy} onClick={()=>void unequip(i.id)}>Unequip</button></>}
         </div>
       })}</div>
     </section>}
@@ -581,7 +591,7 @@ function Judge({gameId,characters,refresh}:{gameId:string;characters:Character[]
     if(!supabase||!event.trim())return
     setBusy(true);setMsg('')
     try{
-      const {data,error}=await supabase.functions.invoke('dungeon-judge',{body:{gameId,event,tone:'unhinged',frequency:'balanced',characters:characters.map(c=>({id:c.id,name:c.name,level:c.level,stats:c.stats,health:[c.currentHealth/4,c.maxHealth/4],skills:c.skills,gear:Object.values(c.gear).filter(Boolean)}))}})
+      const {data,error}=await supabase.functions.invoke('dungeon-judge',{body:{gameId,event,tone:'unhinged',frequency:'balanced',characters:characters.map(c=>{const bonus=equippedStatBonuses(c);return {id:c.id,name:c.name,level:c.level,stats:Object.fromEntries(stats.map(s=>[s,c.stats[s]+bonus[s]])),base_stats:c.stats,health:[c.currentHealth/4,c.maxHealth/4],skills:c.skills,gear:Object.values(c.gear).filter(Boolean)}})}})
       if(error){
         let detail=error.message
         const response=(error as any).context as Response | undefined
@@ -665,6 +675,7 @@ function Judge({gameId,characters,refresh}:{gameId:string;characters:Character[]
         <strong>{verdict.reward.name}</strong>
         <div>{verdict.reward.effect}</div>
         {verdict.reward.quirk&&<div className="muted small">AI QUIRK: {verdict.reward.quirk}</div>}
+        {verdict.reward.stat_bonuses&&statBonusSummary(verdict.reward.stat_bonuses)&&<div className="item-stat-bonus-summary">EQUIPPED BONUS · {statBonusSummary(verdict.reward.stat_bonuses)}</div>}
       </div>}
       <details className="gm-reasoning"><summary>GM-only reasoning</summary><div>{verdict.reasoning_for_gm}</div></details>
       <button className="button primary wide apply-verdict-button" onClick={()=>void apply()}>APPROVE & APPLY DECISION</button>
@@ -712,6 +723,7 @@ function Judge({gameId,characters,refresh}:{gameId:string;characters:Character[]
         <div className="command-guarantee"><span>Guaranteed contents</span><strong>{commandPreview.action.item.name}</strong></div>
         {commandPreview.action.item.effect&&<div>{commandPreview.action.item.effect}</div>}
         {commandPreview.action.item.quirk&&<div className="muted small">Quirk: {commandPreview.action.item.quirk}</div>}
+        {statBonusSummary(commandPreview.action.item.stat_bonuses)&&<div className="item-stat-bonus-summary">EQUIPPED BONUS · {statBonusSummary(commandPreview.action.item.stat_bonuses)}</div>}
       </div>}
 
       {commandPreview.action.kind==='item'&&<div className={`command-action-card rarity-${commandPreview.action.rarity}`}>
@@ -719,6 +731,7 @@ function Judge({gameId,characters,refresh}:{gameId:string;characters:Character[]
         <strong>{commandPreview.action.item.name}</strong>
         {commandPreview.action.item.effect&&<div>{commandPreview.action.item.effect}</div>}
         {commandPreview.action.item.quirk&&<div className="muted small">Quirk: {commandPreview.action.item.quirk}</div>}
+        {statBonusSummary(commandPreview.action.item.stat_bonuses)&&<div className="item-stat-bonus-summary">EQUIPPED BONUS · {statBonusSummary(commandPreview.action.item.stat_bonuses)}</div>}
       </div>}
 
       {commandPreview.action.kind==='health'&&<div className="command-action-card health-command-card">
@@ -815,15 +828,15 @@ function GM({gameId,characters,refresh}:{gameId:string;characters:Character[];re
   const [itemType,setItemType]=useState<'Weapon'|'Armor'|'Accessory'|'Consumable'|'Utility'|'Quest'>('Utility')
   const [itemSlot,setItemSlot]=useState('')
   const [itemCoreValue,setItemCoreValue]=useState(0)
-  const [itemConstitutionBonus,setItemConstitutionBonus]=useState(0)
+  const [itemStatBonuses,setItemStatBonuses]=useState<Character['stats']>(zeroStatBonuses())
   const [itemEffect,setItemEffect]=useState('')
   const [itemQuirk,setItemQuirk]=useState('')
   const [itemQuantity,setItemQuantity]=useState(1)
   const [skillName,setSkillName]=useState('')
   const [skillLevel,setSkillLevel]=useState(1)
   const current=characters.find(c=>c.id===selected)||characters[0]
-  const currentConstitutionBonus=current?equippedConstitutionBonus(current):0
-  const currentTotalConstitution=current?current.stats.Constitution+currentConstitutionBonus:0
+  const currentGearBonuses=current?equippedStatBonuses(current):zeroStatBonuses()
+  const currentTotalConstitution=current?current.stats.Constitution+currentGearBonuses.Constitution:0
   useEffect(()=>{if(!selected&&characters[0])setSelected(characters[0].id)},[characters,selected])
   async function rpc(name:string,args:any){
     if(!supabase)return false
@@ -846,12 +859,16 @@ function GM({gameId,characters,refresh}:{gameId:string;characters:Character[];re
       p_quirk:itemQuirk.trim(),
       p_core_value:Math.max(0,Math.min(999,itemCoreValue||0)),
       p_quantity:Math.max(1,Math.min(99,itemQuantity||1)),
-      p_constitution_bonus:Math.max(0,Math.min(999,itemConstitutionBonus||0)),
+      p_strength_bonus:Math.max(0,Math.min(999,itemStatBonuses.Strength||0)),
+      p_dexterity_bonus:Math.max(0,Math.min(999,itemStatBonuses.Dexterity||0)),
+      p_intelligence_bonus:Math.max(0,Math.min(999,itemStatBonuses.Intelligence||0)),
+      p_constitution_bonus:Math.max(0,Math.min(999,itemStatBonuses.Constitution||0)),
+      p_charisma_bonus:Math.max(0,Math.min(999,itemStatBonuses.Charisma||0)),
     })
     if(ok){
       setItemName('')
       setItemCoreValue(0)
-      setItemConstitutionBonus(0)
+      setItemStatBonuses(zeroStatBonuses())
       setItemEffect('')
       setItemQuirk('')
       setItemQuantity(1)
@@ -978,8 +995,8 @@ function GM({gameId,characters,refresh}:{gameId:string;characters:Character[];re
         </div>
         <div className="gm-stats-grid">{stats.map(s=><div className="gm-stat-card" key={s}>
           <span>{s}</span>
-          <strong>+{s==='Constitution'?currentTotalConstitution:current.stats[s]}</strong>
-          {s==='Constitution'&&currentConstitutionBonus>0&&<div className="stat-bonus-note">Base {current.stats.Constitution} + Gear {currentConstitutionBonus}</div>}
+          <strong>+{current.stats[s]+currentGearBonuses[s]}</strong>
+          {currentGearBonuses[s]>0&&<div className="stat-bonus-note">Base {current.stats[s]} + Gear {currentGearBonuses[s]}</div>}
           <div className="gm-stat-controls">
             <button className="button stat-step" aria-label={`Decrease ${s}`} onClick={()=>void rpc('gm_adjust_stat',{p_character_id:current.id,p_stat:s,p_delta:-1})}>−</button>
             <span className="muted small">Adjust</span>
@@ -992,7 +1009,7 @@ function GM({gameId,characters,refresh}:{gameId:string;characters:Character[];re
           <h3>Inventory</h3>
           {current.inventory.length?current.inventory.map(i=><div className={`tag-row gm-inventory-item rarity-${i.rarity}`} key={i.id}>
             <div className="gm-item-heading"><strong>{i.name}</strong><span className="pill">{i.rarity==='B'?'Bronze':i.rarity==='S'?'Silver':'Gold'} · Core {i.coreValue}</span></div>
-            <div className="muted small">{i.type}{(i.constitutionBonus??0)>0?` · CON +${i.constitutionBonus??0} when equipped`:''}{(i.quantity??1)>1?` ×${i.quantity}`:''}</div>
+            <div className="muted small">{i.type}{statBonusSummary(i.statBonuses)?` · ${statBonusSummary(i.statBonuses)} when equipped`:''}{(i.quantity??1)>1?` ×${i.quantity}`:''}</div>
             {i.effect&&<div className="small gm-item-copy">{i.effect}</div>}
             {i.quirk&&<div className="muted small">Quirk: {i.quirk}</div>}
             <div className="gm-item-actions">
@@ -1000,10 +1017,12 @@ function GM({gameId,characters,refresh}:{gameId:string;characters:Character[];re
               <button className="button stat-step" onClick={()=>void rpc('gm_adjust_item_core_value',{p_character_item_id:i.id,p_delta:-1})}>−</button>
               <strong>{i.coreValue}</strong>
               <button className="button stat-step" onClick={()=>void rpc('gm_adjust_item_core_value',{p_character_item_id:i.id,p_delta:1})}>+</button>
-              <span className="muted small gm-con-label">CON bonus</span>
-              <button className="button stat-step" onClick={()=>void rpc('gm_adjust_item_constitution_bonus',{p_character_item_id:i.id,p_delta:-1})}>−</button>
-              <strong>+{i.constitutionBonus??0}</strong>
-              <button className="button stat-step" onClick={()=>void rpc('gm_adjust_item_constitution_bonus',{p_character_item_id:i.id,p_delta:1})}>+</button>
+              <div className="gm-item-stat-bonuses">{stats.map(stat=><div className="gm-item-stat-bonus-row" key={stat}>
+                <span>{stat.slice(0,3).toUpperCase()}</span>
+                <button className="button stat-step" onClick={()=>void rpc('gm_adjust_item_stat_bonus',{p_character_item_id:i.id,p_stat:stat,p_delta:-1})}>−</button>
+                <strong>+{i.statBonuses[stat]}</strong>
+                <button className="button stat-step" onClick={()=>void rpc('gm_adjust_item_stat_bonus',{p_character_item_id:i.id,p_stat:stat,p_delta:1})}>+</button>
+              </div>)}</div>
               <button className="button" onClick={()=>void renameItem(i.id,i.name)}>Rename</button>
               <button className="button" onClick={()=>void rpc('gm_remove_character_item',{p_character_item_id:i.id})}>Remove</button>
             </div>
@@ -1014,13 +1033,15 @@ function GM({gameId,characters,refresh}:{gameId:string;characters:Character[];re
             return <div className={`tag-row gm-inventory-item ${i?`rarity-${i.rarity}`:''}`} key={slot}>
               <div className="gm-item-heading"><strong>{i?.name??'Empty'}</strong><span className="pill">{slot}</span></div>
               {i&&<>
-                <div className="muted small">{i.type} · {i.rarity==='B'?'Bronze':i.rarity==='S'?'Silver':'Gold'} · Core {i.coreValue}{(i.constitutionBonus??0)>0?` · CON +${i.constitutionBonus??0}`:''}</div>
+                <div className="muted small">{i.type} · {i.rarity==='B'?'Bronze':i.rarity==='S'?'Silver':'Gold'} · Core {i.coreValue}{statBonusSummary(i.statBonuses)?` · ${statBonusSummary(i.statBonuses)}`:''}</div>
                 {i.effect&&<div className="small gm-item-copy">{i.effect}</div>}
                 <div className="gm-item-actions">
-                  <span className="muted small gm-con-label">CON bonus</span>
-                  <button className="button stat-step" onClick={()=>void rpc('gm_adjust_item_constitution_bonus',{p_character_item_id:i.id,p_delta:-1})}>−</button>
-                  <strong>+{i.constitutionBonus??0}</strong>
-                  <button className="button stat-step" onClick={()=>void rpc('gm_adjust_item_constitution_bonus',{p_character_item_id:i.id,p_delta:1})}>+</button>
+                  <div className="gm-item-stat-bonuses">{stats.map(stat=><div className="gm-item-stat-bonus-row" key={stat}>
+                    <span>{stat.slice(0,3).toUpperCase()}</span>
+                    <button className="button stat-step" onClick={()=>void rpc('gm_adjust_item_stat_bonus',{p_character_item_id:i.id,p_stat:stat,p_delta:-1})}>−</button>
+                    <strong>+{i.statBonuses[stat]}</strong>
+                    <button className="button stat-step" onClick={()=>void rpc('gm_adjust_item_stat_bonus',{p_character_item_id:i.id,p_stat:stat,p_delta:1})}>+</button>
+                  </div>)}</div>
                   <button className="button" onClick={()=>void renameItem(i.id,i.name)}>Rename</button>
                   <button className="button" onClick={()=>void rpc('gm_remove_character_item',{p_character_item_id:i.id})}>Remove</button>
                 </div>
@@ -1035,7 +1056,10 @@ function GM({gameId,characters,refresh}:{gameId:string;characters:Character[];re
             <label className="gm-form-wide">Item name<input value={itemName} onChange={e=>setItemName(e.target.value)} placeholder="Goblin Cleaver"/></label>
             <label>Rarity<select value={itemRarity} onChange={e=>setItemRarity(e.target.value as 'B'|'S'|'G')}><option value="B">Bronze</option><option value="S">Silver</option><option value="G">Gold</option></select></label>
             <label>Core value<input type="number" min={0} max={999} value={itemCoreValue} onChange={e=>setItemCoreValue(Number(e.target.value))}/></label>
-            <label>Constitution bonus<input type="number" min={0} max={999} value={itemConstitutionBonus} onChange={e=>setItemConstitutionBonus(Number(e.target.value))}/></label>
+            <fieldset className="gm-stat-bonus-fields gm-form-wide">
+              <legend>Core stat bonuses while equipped</legend>
+              <div className="gm-stat-bonus-inputs">{stats.map(stat=><label key={stat}>{stat}<input type="number" min={0} max={999} value={itemStatBonuses[stat]} onChange={e=>setItemStatBonuses(current=>({...current,[stat]:Math.max(0,Number(e.target.value)||0)}))}/></label>)}</div>
+            </fieldset>
             <label>Item type<select value={itemType} onChange={e=>setItemType(e.target.value as typeof itemType)}><option>Weapon</option><option>Armor</option><option>Accessory</option><option>Consumable</option><option>Utility</option><option>Quest</option></select></label>
             <label>Equipment slot<select value={itemSlot} onChange={e=>setItemSlot(e.target.value)}><option value="">None</option><option>Head</option><option>Body</option><option>Hands</option><option>Feet</option><option>Weapon 1</option><option>Weapon 2</option><option>Accessory 1</option><option>Accessory 2</option></select></label>
             <label>Quantity<input type="number" min={1} max={99} value={itemQuantity} onChange={e=>setItemQuantity(Number(e.target.value))}/></label>
