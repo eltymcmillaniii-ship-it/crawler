@@ -30,8 +30,27 @@ const schema = {
         name: { type: 'string' },
         effect: { type: 'string' },
         quirk: { type: 'string' },
+        item_type: { type: 'string', enum: ['Weapon','Armor','Accessory','Consumable','Utility','Quest','AI Generated'] },
+        slot: {
+          anyOf: [
+            { type: 'null' },
+            { type: 'string', enum: ['Head','Body','Hands','Feet','Weapon 1','Weapon 2','Accessory 1','Accessory 2'] },
+          ],
+        },
+        stat_bonuses: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            Strength: { type: 'integer', minimum: 0, maximum: 999 },
+            Dexterity: { type: 'integer', minimum: 0, maximum: 999 },
+            Intelligence: { type: 'integer', minimum: 0, maximum: 999 },
+            Constitution: { type: 'integer', minimum: 0, maximum: 999 },
+            Charisma: { type: 'integer', minimum: 0, maximum: 999 },
+          },
+          required: ['Strength','Dexterity','Intelligence','Constitution','Charisma'],
+        },
       },
-      required: ['kind','rarity','name','effect','quirk'],
+      required: ['kind','rarity','name','effect','quirk','item_type','slot','stat_bonuses'],
     },
     reasoning_for_gm: { type: 'string' },
   },
@@ -69,6 +88,9 @@ function fallbackVerdict(body: any) {
         name: 'Bronze Box of Questionable Merit',
         effect: 'Contains one useful, weird, or situational dungeon item.',
         quirk: 'The Dungeon insists this was earned through talent rather than poor impulse control.',
+        item_type: 'AI Generated',
+        slot: null,
+        stat_bonuses: { Strength:0, Dexterity:0, Intelligence:0, Constitution:0, Charisma:0 },
       },
       reasoning_for_gm: 'Fallback judgment used because the AI judge was unavailable. The event sounded unusually risky or spectacular, so a Bronze reward was granted.',
     }
@@ -90,6 +112,9 @@ function fallbackVerdict(body: any) {
         name: '',
         effect: '',
         quirk: '',
+        item_type: 'AI Generated',
+        slot: null,
+        stat_bonuses: { Strength:0, Dexterity:0, Intelligence:0, Constitution:0, Charisma:0 },
       },
       reasoning_for_gm: 'Fallback judgment used because the AI judge was unavailable. The event merited a flavor achievement but not a mechanical reward.',
     }
@@ -183,7 +208,7 @@ Deno.serve(async (req) => {
       const openai = new OpenAI({ apiKey })
       const response = await openai.responses.create({
         model: Deno.env.get('OPENAI_MODEL') || 'gpt-5.6-luna',
-        instructions: `You are the Dungeon AI for a fast tabletop dungeon-crawl game. Judge player behavior rather than automatically rewarding it. Boring competency may get nothing. Clever, risky, funny, emergent, or spectacular play may earn a sarcastic achievement and sometimes a reward. Keep rewards rare enough to stay exciting. Bronze is useful/situational, Silver is meaningfully character-shaping, Gold is rare and can bend a normal rule. Prefer weird mechanical options over raw numerical inflation. Never create real-world dangerous instructions. The GM sees reasoning_for_gm; players do not. Recipient IDs MUST be copied exactly from the supplied character IDs. For party rewards, include every intended recipient ID. Tone should match the requested Dungeon personality.`,
+        instructions: `You are the Dungeon AI for a fast tabletop dungeon-crawl game. Judge player behavior rather than automatically rewarding it. Boring competency may get nothing. Clever, risky, funny, emergent, or spectacular play may earn a sarcastic achievement and sometimes a reward. Keep rewards rare enough to stay exciting. Bronze is useful/situational, Silver is meaningfully character-shaping, Gold is rare and can bend a normal rule. Prefer weird mechanical options over raw numerical inflation. Items may optionally boost any core stats while equipped. When reward.kind is "item", choose an appropriate item_type and equipment slot when it should be equippable, and populate stat_bonuses for Strength, Dexterity, Intelligence, Constitution, and Charisma. Use 0 for stats not boosted. Keep stat boosts modest: Bronze usually 0-1 total bonus points, Silver usually 1-2, Gold usually 2-3 unless a rare effect clearly warrants more. For non-item rewards, use item_type "AI Generated", slot null, and all stat bonuses 0. Never create real-world dangerous instructions. The GM sees reasoning_for_gm; players do not. Recipient IDs MUST be copied exactly from the supplied character IDs. For party rewards, include every intended recipient ID. Tone should match the requested Dungeon personality.`,
         input: JSON.stringify(body),
         text: { format: { type: 'json_schema', name: 'dungeon_verdict', strict: true, schema } },
       })
