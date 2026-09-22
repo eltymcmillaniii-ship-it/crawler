@@ -106,3 +106,12 @@
 .rarity-pill-S{border-color:var(--silver)}
 .rarity-pill-G{border-color:var(--gold)}
 @media(max-width:520px){.story-entry-head{align-items:flex-start;flex-direction:column}.story-entry{padding:12px}}
+
+.crawler-recovery-panel{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.crawler-recovery-panel h3{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.16em;font-size:24px;margin:4px 0 6px}
+.crawler-recovery-actions{display:flex;gap:8px;flex-wrap:wrap}
+.recovery-login-panel{margin-top:14px}
+.recovery-login-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0 12px}
+.recovery-login-fields label{margin:0!important}
+.recovery-login-fields input{text-transform:uppercase}
+@media(max-width:620px){.crawler-recovery-panel{align-items:stretch;flex-direction:column}.crawler-recovery-actions .button{flex:1}.recovery-login-fields{grid-template-columns:1fr}}
