@@ -4,9 +4,9 @@ import type { Character, DungeonVerdict, GearSlot, LootOpenResult } from './lib/
 import { supabase, supabaseConfigured } from './lib/supabase'
 import {
   applyDungeonVerdict, completeCharacterSetup, createGame, createGmLogin, deleteGame, ensureAnonymousUser, joinGame,
-  equipCharacterItem, gmRenameItem, listMyGames, loadCharacters, loadDungeonStory, openLootBox, persistCharacterDiff, recoverCrawler, renameCharacter, signInGm, signOutUser, subscribeToGame, unequipCharacterItem, uploadCharacterPortrait,
+  equipCharacterItem, gmRenameItem, listMyGames, loadCharacters, loadDungeonStory, loadPartyMembers, openLootBox, persistCharacterDiff, recoverCrawler, renameCharacter, signInGm, signOutUser, subscribeToGame, unequipCharacterItem, uploadCharacterPortrait,
 } from './lib/live'
-import type { DungeonStoryEvent, GameSummary } from './lib/live'
+import type { DungeonStoryEvent, GameSummary, PartyMember } from './lib/live'
 
 const stats = ['Strength','Dexterity','Intelligence','Constitution','Charisma'] as const
 const gearSlots: GearSlot[] = ['Head','Body','Hands','Feet','Weapon 1','Weapon 2','Accessory 1','Accessory 2']
@@ -166,12 +166,29 @@ function Setup({character,onDone}:{character:Character;onDone:()=>Promise<void>}
   </div>
 }
 
-function Player({character,refresh}:{character:Character;refresh:()=>Promise<void>}) {
-  const [tab,setTab]=useState<'crawler'|'inventory'|'loot'|'achievements'>('crawler')
+function Player({gameId,character,refresh}:{gameId:string;character:Character;refresh:()=>Promise<void>}) {
+  const [tab,setTab]=useState<'crawler'|'party'|'inventory'|'loot'|'achievements'>('crawler')
   const [msg,setMsg]=useState('')
   const [busy,setBusy]=useState(false)
   const [uploadingPortrait,setUploadingPortrait]=useState(false)
   const [lootReveal,setLootReveal]=useState<LootOpenResult|null>(null)
+  const [party,setParty]=useState<PartyMember[]>([])
+  const [partyLoading,setPartyLoading]=useState(false)
+
+  async function openParty(){
+    setTab('party')
+    setPartyLoading(true)
+    setMsg('')
+    try{
+      setParty(await loadPartyMembers(gameId))
+    }catch(e){
+      setMsg(e instanceof Error?e.message:'Could not load party')
+    }finally{
+      setPartyLoading(false)
+    }
+  }
+
+  useEffect(()=>{void loadPartyMembers(gameId).then(setParty).catch(()=>{})},[gameId])
 
   async function uploadPortrait(file:File){
     if(!file)return
@@ -241,7 +258,7 @@ function Player({character,refresh}:{character:Character;refresh:()=>Promise<voi
   return <>
     <section className="panel pad player-header"><div><div className="player-name-row"><h2>{character.name} <span className="pill">Level {character.level}</span></h2><button className="button compact-action" disabled={busy} onClick={()=>void renameSelf()}>Rename</button></div><div className="muted">{character.background}</div></div><div><div className="eyebrow">Health</div><Hearts c={character.currentHealth} m={character.maxHealth}/></div></section>
     {character.unspentStatPoints>0&&<div className="live-banner level-up-broadcast"><div className="broadcast-kicker">SYSTEM OVERRIDE</div><strong>LEVEL UP!</strong><span>You have {character.unspentStatPoints} stat point{character.unspentStatPoints===1?'':'s'} to spend.</span></div>}
-    <nav className="tabs"><button className={`button ${tab==='crawler'?'primary':''}`} onClick={()=>setTab('crawler')}><Users size={16}/>Crawler</button><button className={`button ${tab==='inventory'?'primary':''}`} onClick={()=>setTab('inventory')}><Package size={16}/>Inventory</button><button className={`button ${tab==='loot'?'primary':''}`} onClick={()=>setTab('loot')}><Gift size={16}/>Loot</button><button className={`button ${tab==='achievements'?'primary':''}`} onClick={()=>setTab('achievements')}><Trophy size={16}/>Achievements</button></nav>
+    <nav className="tabs"><button className={`button ${tab==='crawler'?'primary':''}`} onClick={()=>setTab('crawler')}><Users size={16}/>Crawler</button><button className={`button ${tab==='party'?'primary':''}`} onClick={()=>void openParty()}><Users size={16}/>Party</button><button className={`button ${tab==='inventory'?'primary':''}`} onClick={()=>setTab('inventory')}><Package size={16}/>Inventory</button><button className={`button ${tab==='loot'?'primary':''}`} onClick={()=>setTab('loot')}><Gift size={16}/>Loot</button><button className={`button ${tab==='achievements'?'primary':''}`} onClick={()=>setTab('achievements')}><Trophy size={16}/>Achievements</button></nav>
     {msg&&<div className="status-message">{msg}</div>}
     {tab==='crawler'&&<div className="crawler-layout">
       <section className="panel pad portrait-panel">
@@ -266,6 +283,24 @@ function Player({character,refresh}:{character:Character;refresh:()=>Promise<voi
         <div className="two-col"><section className="panel pad"><h3><Brain size={18}/>Stats</h3><div className="stats-grid">{stats.map(s=><div className="stat" key={s}><span>{s}</span><strong>+{character.stats[s]}</strong>{character.unspentStatPoints>0&&<button className="button" disabled={busy} onClick={()=>void spend(s)}>+1</button>}</div>)}</div><h3>Conditions</h3><div className="chips">{character.conditions.length?character.conditions.map(x=><span className="pill" key={x}>{x}</span>):<span className="muted">None</span>}</div></section><section className="panel pad"><h3>Skills</h3>{character.skills.map(s=><div className="line-row" key={s.name}><span>{s.name}</span><strong>+{s.rank}</strong></div>)}<h3>Perks</h3>{character.perks.length?character.perks.map(x=><div className="tag-row" key={x}>{x}</div>):<div className="muted">None yet.</div>}</section></div>
       </div>
     </div>}
+    {tab==='party'&&<section className="panel pad party-directory-panel">
+      <div className="broadcast-section-heading">
+        <div><div className="broadcast-kicker">ACTIVE CRAWLERS</div><h3><Users size={18}/>Your Party</h3></div>
+        <span className="pill">{party.length} crawler{party.length===1?'':'s'}</span>
+      </div>
+      <p className="muted small party-directory-copy">These are the people currently trapped in this terrible situation with you.</p>
+      {partyLoading?<div className="class-empty">Scanning for surviving party members…</div>:party.length?<div className="party-directory-grid">{party.map(member=><article className={`party-member-card ${member.id===character.id?'party-member-self':''}`} key={member.id}>
+        <div className="party-member-portrait">
+          {member.portraitUrl?<img src={member.portraitUrl} alt={`${member.name} portrait`}/>:<div className="party-member-placeholder"><Users size={42}/></div>}
+          {member.id===character.id&&<span className="party-self-badge">YOU</span>}
+        </div>
+        <div className="party-member-info">
+          <div className="broadcast-kicker">LEVEL {member.level}</div>
+          <h2>{member.name}</h2>
+          <div className="party-class">{member.className}</div>
+        </div>
+      </article>)}</div>:<div className="class-empty">No other crawlers detected.</div>}
+    </section>}
     {tab==='inventory'&&<section className="panel pad inventory-management-panel">
       <div className="section-title"><div><div className="eyebrow">Loadout</div><h3>Backpack</h3></div><span className="pill">{character.inventory.length} carried</span></div>
       <div className="muted small inventory-help">Equip gear here. If a slot is already occupied, the old item automatically returns to your backpack.</div>
@@ -819,5 +854,5 @@ export default function App(){
   if(!game)return <Lobby userId={userId} isAnonymous={isAnonymous} accountEmail={accountEmail} games={games} reload={()=>reloadGames(userId)} open={open}/>
 
   const me=characters.find(c=>c.userId===userId)
-  return <div className="app-shell"><header className="topbar"><div><h1>{game.name}</h1><div className="muted">Floor {game.floorNumber} · Join code <strong>{game.joinCode}</strong></div></div><button className="button" onClick={()=>{setGame(null);localStorage.removeItem('crawler-active-game')}}>Lobby</button></header><div className="live-banner">Live multiplayer connected.</div>{game.role==='gm'?<GM gameId={game.id} characters={characters} refresh={()=>refresh(game)}/>:me?!me.setupComplete?<Setup character={me} onDone={()=>refresh(game)}/>:<Player character={me} refresh={()=>refresh(game)}/>:<section className="panel pad"><p>Preparing your crawler…</p></section>}</div>
+  return <div className="app-shell"><header className="topbar"><div><h1>{game.name}</h1><div className="muted">Floor {game.floorNumber} · Join code <strong>{game.joinCode}</strong></div></div><button className="button" onClick={()=>{setGame(null);localStorage.removeItem('crawler-active-game')}}>Lobby</button></header><div className="live-banner">Live multiplayer connected.</div>{game.role==='gm'?<GM gameId={game.id} characters={characters} refresh={()=>refresh(game)}/>:me?!me.setupComplete?<Setup character={me} onDone={()=>refresh(game)}/>:<Player gameId={game.id} character={me} refresh={()=>refresh(game)}/>:<section className="panel pad"><p>Preparing your crawler…</p></section>}</div>
 }
