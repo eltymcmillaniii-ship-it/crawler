@@ -229,7 +229,7 @@ export async function loadCharacters(gameId: string): Promise<Character[]> {
   const ids = chars.map((c: any) => c.id)
   const [skillsRes, itemsRes, achievementsRes, boxesRes] = await Promise.all([
     sb.from('skills').select('*').in('character_id', ids),
-    sb.from('character_items').select('id,character_id,quantity,equipped_slot,tradeable,item:items(id,name,rarity,item_type,slot,effect,quirk,core_value,ai_generated)').in('character_id', ids),
+    sb.from('character_items').select('id,character_id,quantity,equipped_slot,tradeable,item:items(id,name,rarity,item_type,slot,effect,quirk,core_value,constitution_bonus,ai_generated)').in('character_id', ids),
     sb.from('achievements').select('*').in('character_id', ids).order('created_at'),
     sb.from('loot_boxes').select('*').in('character_id', ids).is('opened_at', null).order('created_at'),
   ])
@@ -252,6 +252,7 @@ export async function loadCharacters(gameId: string): Promise<Character[]> {
         slot: normalizeGearSlot(raw.slot),
         effect: String(raw.effect ?? ''),
         coreValue: Number(raw.core_value ?? 0),
+        constitutionBonus: Number(raw.constitution_bonus ?? 0),
         quirk: raw.quirk ? String(raw.quirk) : undefined,
         quantity: Number(ci.quantity ?? 1),
         tradeable: Boolean(ci.tradeable ?? true),
