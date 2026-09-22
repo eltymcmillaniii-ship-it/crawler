@@ -28,6 +28,47 @@ export async function ensureAnonymousUser(): Promise<User> {
   return data.user
 }
 
+export async function createGmLogin(email: string, password: string): Promise<User> {
+  const sb = client()
+  const { data, error } = await sb.functions.invoke('gm-account', {
+    body: { email: email.trim().toLowerCase(), password },
+  })
+  if (error) {
+    let detail = error.message
+    const response = (error as any).context as Response | undefined
+    try {
+      const payload = await response?.clone().json()
+      if (payload?.error) detail = String(payload.error)
+    } catch {}
+    throw new Error(detail)
+  }
+  if (data?.error) throw new Error(String(data.error))
+
+  const { data: signInData, error: signInError } = await sb.auth.signInWithPassword({
+    email: email.trim().toLowerCase(),
+    password,
+  })
+  if (signInError) throw signInError
+  if (!signInData.user) throw new Error('GM account was created, but sign-in did not complete.')
+  return signInData.user
+}
+
+export async function signInGm(email: string, password: string): Promise<User> {
+  const sb = client()
+  const { data, error } = await sb.auth.signInWithPassword({
+    email: email.trim().toLowerCase(),
+    password,
+  })
+  if (error) throw error
+  if (!data.user) throw new Error('Sign-in did not return a user.')
+  return data.user
+}
+
+export async function signOutUser() {
+  const { error } = await client().auth.signOut()
+  if (error) throw error
+}
+
 export async function listMyGames(userId: string): Promise<GameSummary[]> {
   const sb = client()
   const { data, error } = await sb
