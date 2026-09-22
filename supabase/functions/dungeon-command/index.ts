@@ -468,6 +468,7 @@ DISTRIBUTION RULES:
 - Use each crawler's level, stats, skills, and equipped gear as inspiration when available. Tailor the item to their build or personality implied by their current mechanics.
 - Do not produce lazy names like "Bespoke Hat", "Custom Sword", or "Personalized Item" unless the GM explicitly asks for that exact wording.
 - If the GM asks for different loot boxes, each recipient gets a box whose guaranteed preset item is their own distinct item.
+- Loot box names MUST NOT reveal, name, strongly hint at, or summarize the guaranteed item inside. The player should discover the contents only when opening it. Use mysterious/funny Dungeon-style box names such as "Bronze Box of Administrative Concern" rather than "Healing Potion Box" or "Sword Cache."
 - If the GM wants the same item for everyone, set distribution="shared" and leave individual_items empty.
 
 ITEM ASSIGNMENT RULES:
