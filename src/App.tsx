@@ -975,17 +975,6 @@ function GM({gameId,characters,refresh}:{gameId:string;characters:Character[];re
         <div className="gm-profile-main"><h2>{current.name}</h2><div className="muted">Level {current.level} · {current.background}</div><div className="gm-profile-health"><div className="eyebrow">Health</div><HealthBar c={current.currentHealth} m={current.maxHealth}/></div></div>
         <div className="gm-profile-actions"><button className="button" onClick={()=>void renameCrawler(current)}>Rename Player</button><button className="button danger-button" onClick={()=>void deletePlayer(current)}>Delete Player</button></div>
       </section>
-      <section className="panel pad crawler-recovery-panel">
-        <div>
-          <div className="eyebrow">Crawler Recovery</div>
-          <h3>{current.recoveryCode}</h3>
-          <div className="muted small">Send this code with the game join code if {current.name} needs to reclaim this crawler on another device.</div>
-        </div>
-        <div className="crawler-recovery-actions">
-          <button className="button primary" onClick={()=>void copyRecoveryCode(current)}>Copy Code</button>
-          <button className="button" onClick={()=>void regenerateRecoveryCode(current)}>Regenerate</button>
-        </div>
-      </section>
       <section className="panel pad gm-core-stats-panel">
         <div className="section-title">
           <div><div className="eyebrow">GM Controls</div><h3>Core Stats</h3></div>
@@ -1113,6 +1102,18 @@ function GM({gameId,characters,refresh}:{gameId:string;characters:Character[];re
           <div className="muted small gm-tool-note">Reducing a skill below +1 removes it.</div>
         </section>
       </div>
+      <section className="panel pad crawler-recovery-panel">
+        <div>
+          <div className="eyebrow">Crawler Recovery</div>
+          <h3>{current.recoveryCode}</h3>
+          <div className="muted small">Send this code with the game join code if {current.name} needs to reclaim this crawler on another device.</div>
+        </div>
+        <div className="crawler-recovery-actions">
+          <button className="button primary" onClick={()=>void copyRecoveryCode(current)}>Copy Code</button>
+          <button className="button" onClick={()=>void regenerateRecoveryCode(current)}>Regenerate</button>
+        </div>
+      </section>
+
     </main></div>}
   </>
 }
