@@ -3,7 +3,7 @@ import { ArrowLeftRight, Brain, Gift, Package, ScrollText, Sparkles, Trophy, Use
 import type { Character, DungeonVerdict, GearSlot, LootOpenResult, TradeRecord, TradeTarget, TradeableItem } from './lib/types'
 import { supabase, supabaseConfigured } from './lib/supabase'
 import {
-  acceptTrade, applyDungeonVerdict, cancelTrade, completeCharacterSetup, createGame, createGmLogin, createTrade, declineTrade, deleteGame, ensureAnonymousUser, joinGame,
+  acceptTrade, applyDungeonCommand, applyDungeonVerdict, cancelTrade, completeCharacterSetup, createGame, createGmLogin, createTrade, declineTrade, deleteGame, ensureAnonymousUser, joinGame,
   equipCharacterItem, gmRenameItem, listMyGames, listMyTrades, listTradeableItems, listTradeTargets, loadCharacters, loadDungeonStory, loadPartyMembers, openLootBox, persistCharacterDiff, recoverCrawler, renameCharacter, signInGm, signOutUser, subscribeToGame, unequipCharacterItem, uploadCharacterPortrait,
 } from './lib/live'
 import type { DungeonStoryEvent, GameSummary, PartyMember } from './lib/live'
@@ -513,11 +513,36 @@ function Player({gameId,character,refresh}:{gameId:string;character:Character;re
   </>
 }
 
+type DungeonCommand = {
+  summary: string
+  recipients: string[]
+  action: {
+    kind: 'loot_box'|'item'|'health'
+    rarity: 'B'|'S'|'G'
+    box_name: string
+    opening_message: string
+    item: {
+      name: string
+      item_type: string
+      slot: GearSlot|null
+      effect: string
+      quirk: string
+    }
+    health_delta: number
+    full_heal: boolean
+  }
+  source?: string
+}
+
 function Judge({gameId,characters,refresh}:{gameId:string;characters:Character[];refresh:()=>Promise<void>}) {
   const [event,setEvent]=useState('')
   const [verdict,setVerdict]=useState<DungeonVerdict|null>(null)
   const [busy,setBusy]=useState(false)
   const [msg,setMsg]=useState('')
+  const [commandText,setCommandText]=useState('')
+  const [commandPreview,setCommandPreview]=useState<DungeonCommand|null>(null)
+  const [commandBusy,setCommandBusy]=useState(false)
+  const [commandMsg,setCommandMsg]=useState('')
   async function judge(){
     if(!supabase||!event.trim())return
     setBusy(true);setMsg('')
@@ -542,7 +567,49 @@ function Judge({gameId,characters,refresh}:{gameId:string;characters:Character[]
     try{await applyDungeonVerdict(gameId,event,verdict);await refresh();setMsg('Dungeon decision applied.');setVerdict(null);setEvent('')}
     catch(e){setMsg(e instanceof Error?e.message:'Could not apply verdict')}finally{setBusy(false)}
   }
-  return <section className="panel pad dungeon-judge-panel">
+
+  async function interpretCommand(){
+    if(!supabase||!commandText.trim())return
+    setCommandBusy(true);setCommandMsg('');setCommandPreview(null)
+    try{
+      const {data,error}=await supabase.functions.invoke('dungeon-command',{
+        body:{
+          gameId,
+          command:commandText.trim(),
+          characters:characters.map(c=>({id:c.id,name:c.name})),
+        }
+      })
+      if(error){
+        let detail=error.message
+        const response=(error as any).context as Response | undefined
+        try{
+          const payload=await response?.clone().json()
+          if(payload?.error)detail=String(payload.error)
+        }catch{}
+        throw new Error(detail)
+      }
+      if(data?.error)throw new Error(String(data.error))
+      setCommandPreview(data as DungeonCommand)
+    }catch(e){setCommandMsg(e instanceof Error?e.message:'Could not interpret command')}finally{setCommandBusy(false)}
+  }
+
+  async function executeCommand(){
+    if(!commandPreview||!commandText.trim())return
+    if(!commandPreview.recipients.length){
+      setCommandMsg('No crawlers were identified for this command. Name a crawler or say everyone / the party.')
+      return
+    }
+    setCommandBusy(true);setCommandMsg('')
+    try{
+      await applyDungeonCommand(gameId,commandText.trim(),commandPreview)
+      await refresh()
+      setCommandMsg('Direct GM command executed.')
+      setCommandPreview(null)
+      setCommandText('')
+    }catch(e){setCommandMsg(e instanceof Error?e.message:'Could not execute command')}finally{setCommandBusy(false)}
+  }
+  return <>
+  <section className="panel pad dungeon-judge-panel">
     <div className="judge-masthead">
       <div className="judge-warning">⚠</div>
       <div><div className="broadcast-kicker">DUNGEON AI // EVENT REVIEW</div><h2>DUNGEON JUDGE</h2><div className="muted small">Describe the incident. The system will decide whether incompetence deserves recognition.</div></div>
@@ -570,6 +637,70 @@ function Judge({gameId,characters,refresh}:{gameId:string;characters:Character[]
     </div>}
     {msg&&<div className="status-message broadcast-status">{msg}</div>}
   </section>
+
+  <section className="panel pad dungeon-command-panel">
+    <div className="command-masthead">
+      <div>
+        <div className="broadcast-kicker">GM OVERRIDE // DIRECT CONTROL</div>
+        <h2>DUNGEON COMMAND</h2>
+        <p className="muted small">This does not judge the players. It obeys you. Use it to hand out rewards, issue specific loot, or directly change health.</p>
+      </div>
+      <span className="command-badge">NO JUDGMENT</span>
+    </div>
+
+    <div className="command-input-shell">
+      <div className="judge-input-label"><span>GM COMMAND</span><span>{commandText.length} CHARS</span></div>
+      <textarea
+        rows={4}
+        value={commandText}
+        onChange={e=>{setCommandText(e.target.value);setCommandPreview(null)}}
+        placeholder="Example: Award everyone a Bronze loot box containing a Healing Potion."
+      />
+      <button className="button command-interpret-button wide" disabled={commandBusy||!commandText.trim()} onClick={()=>void interpretCommand()}>
+        {commandBusy?'INTERPRETING ORDER…':'INTERPRET COMMAND'}
+      </button>
+    </div>
+
+    {commandPreview&&<div className="command-preview">
+      <div className="command-preview-head">
+        <div><div className="broadcast-kicker">COMMAND PREVIEW</div><h3>{commandPreview.summary}</h3></div>
+        <span className="pill">{commandPreview.recipients.length} recipient{commandPreview.recipients.length===1?'':'s'}</span>
+      </div>
+      <div className="command-recipient-list">
+        {commandPreview.recipients.length
+          ? commandPreview.recipients.map(id=><span className="pill" key={id}>{characters.find(c=>c.id===id)?.name??'Unknown Crawler'}</span>)
+          : <span className="error-banner command-inline-error">No recipients identified.</span>}
+      </div>
+
+      {commandPreview.action.kind==='loot_box'&&<div className={`command-action-card rarity-${commandPreview.action.rarity}`}>
+        <div className="reward-label">{commandPreview.action.rarity==='B'?'BRONZE':commandPreview.action.rarity==='S'?'SILVER':'GOLD'} LOOT BOX</div>
+        <strong>🎁 {commandPreview.action.box_name}</strong>
+        <div className="command-guarantee"><span>Guaranteed contents</span><strong>{commandPreview.action.item.name}</strong></div>
+        {commandPreview.action.item.effect&&<div>{commandPreview.action.item.effect}</div>}
+        {commandPreview.action.item.quirk&&<div className="muted small">Quirk: {commandPreview.action.item.quirk}</div>}
+      </div>}
+
+      {commandPreview.action.kind==='item'&&<div className={`command-action-card rarity-${commandPreview.action.rarity}`}>
+        <div className="reward-label">{commandPreview.action.rarity==='B'?'BRONZE':commandPreview.action.rarity==='S'?'SILVER':'GOLD'} DIRECT ITEM</div>
+        <strong>{commandPreview.action.item.name}</strong>
+        {commandPreview.action.item.effect&&<div>{commandPreview.action.item.effect}</div>}
+        {commandPreview.action.item.quirk&&<div className="muted small">Quirk: {commandPreview.action.item.quirk}</div>}
+      </div>}
+
+      {commandPreview.action.kind==='health'&&<div className="command-action-card health-command-card">
+        <div className="reward-label">HEALTH OVERRIDE</div>
+        <strong>{commandPreview.action.full_heal?'Restore to full health':`${commandPreview.action.health_delta>=0?'+':''}${commandPreview.action.health_delta} health`}</strong>
+      </div>}
+
+      <div className="command-warning">This bypasses Dungeon judgment and will apply exactly as shown.</div>
+      <button className="button primary wide command-execute-button" disabled={commandBusy||!commandPreview.recipients.length} onClick={()=>void executeCommand()}>
+        EXECUTE GM COMMAND
+      </button>
+    </div>}
+
+    {commandMsg&&<div className="status-message broadcast-status">{commandMsg}</div>}
+  </section>
+  </>
 }
 
 function StoryLog({gameId,characters}:{gameId:string;characters:Character[]}) {
