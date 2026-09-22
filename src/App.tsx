@@ -562,6 +562,7 @@ type DungeonCommand = {
   recipients: string[]
   action: {
     kind: 'loot_box'|'item'|'health'
+    distribution: 'shared'|'individual'
     rarity: 'B'|'S'|'G'
     box_name: string
     opening_message: string
@@ -573,6 +574,17 @@ type DungeonCommand = {
       quirk: string
       stat_bonuses: Character['stats']
     }
+    individual_items: {
+      recipient_id: string
+      item: {
+        name: string
+        item_type: string
+        slot: GearSlot|null
+        effect: string
+        quirk: string
+        stat_bonuses: Character['stats']
+      }
+    }[]
     health_delta: number
     full_heal: boolean
   }
@@ -621,7 +633,23 @@ function Judge({gameId,characters,refresh}:{gameId:string;characters:Character[]
         body:{
           gameId,
           command:commandText.trim(),
-          characters:characters.map(c=>({id:c.id,name:c.name})),
+          characters:characters.map(c=>{
+            const bonus=equippedStatBonuses(c)
+            return {
+              id:c.id,
+              name:c.name,
+              level:c.level,
+              stats:Object.fromEntries(stats.map(stat=>[stat,c.stats[stat]+bonus[stat]])),
+              skills:c.skills,
+              gear:Object.values(c.gear).filter(Boolean).map(item=>({
+                name:item!.name,
+                item_type:item!.type,
+                slot:item!.slot??null,
+                effect:item!.effect,
+                stat_bonuses:item!.statBonuses,
+              })),
+            }
+          }),
         }
       })
       if(error){
@@ -719,7 +747,7 @@ function Judge({gameId,characters,refresh}:{gameId:string;characters:Character[]
           : <span className="error-banner command-inline-error">No recipients identified.</span>}
       </div>
 
-      {commandPreview.action.kind==='loot_box'&&<div className={`command-action-card rarity-${commandPreview.action.rarity}`}>
+      {commandPreview.action.distribution!=='individual'&&commandPreview.action.kind==='loot_box'&&<div className={`command-action-card rarity-${commandPreview.action.rarity}`}>
         <div className="reward-label">{commandPreview.action.rarity==='B'?'BRONZE':commandPreview.action.rarity==='S'?'SILVER':'GOLD'} LOOT BOX</div>
         <strong>🎁 {commandPreview.action.box_name}</strong>
         <div className="command-guarantee"><span>Guaranteed contents</span><strong>{commandPreview.action.item.name}</strong></div>
@@ -728,12 +756,31 @@ function Judge({gameId,characters,refresh}:{gameId:string;characters:Character[]
         {statBonusSummary(commandPreview.action.item.stat_bonuses)&&<div className="item-stat-bonus-summary">EQUIPPED BONUS · {statBonusSummary(commandPreview.action.item.stat_bonuses)}</div>}
       </div>}
 
-      {commandPreview.action.kind==='item'&&<div className={`command-action-card rarity-${commandPreview.action.rarity}`}>
+      {commandPreview.action.distribution!=='individual'&&commandPreview.action.kind==='item'&&<div className={`command-action-card rarity-${commandPreview.action.rarity}`}>
         <div className="reward-label">{commandPreview.action.rarity==='B'?'BRONZE':commandPreview.action.rarity==='S'?'SILVER':'GOLD'} DIRECT ITEM</div>
         <strong>{commandPreview.action.item.name}</strong>
         {commandPreview.action.item.effect&&<div>{commandPreview.action.item.effect}</div>}
         {commandPreview.action.item.quirk&&<div className="muted small">Quirk: {commandPreview.action.item.quirk}</div>}
         {statBonusSummary(commandPreview.action.item.stat_bonuses)&&<div className="item-stat-bonus-summary">EQUIPPED BONUS · {statBonusSummary(commandPreview.action.item.stat_bonuses)}</div>}
+      </div>}
+
+      {commandPreview.action.distribution==='individual'&&['item','loot_box'].includes(commandPreview.action.kind)&&<div className="command-individual-rewards">
+        <div className="broadcast-kicker">INDIVIDUALIZED DUNGEON ALLOCATION</div>
+        <div className="command-individual-grid">
+          {commandPreview.action.individual_items.map(entry=>{
+            const crawler=characters.find(c=>c.id===entry.recipient_id)
+            const item=entry.item
+            return <article className={`command-individual-item rarity-${commandPreview.action.rarity}`} key={entry.recipient_id}>
+              <div className="command-individual-recipient">{crawler?.name??'Unknown Crawler'}</div>
+              <div className="reward-label">{commandPreview.action.rarity==='B'?'BRONZE':commandPreview.action.rarity==='S'?'SILVER':'GOLD'} {commandPreview.action.kind==='loot_box'?'GUARANTEED LOOT':'DIRECT ITEM'}</div>
+              <strong>{item.name}</strong>
+              <div className="muted small">{item.item_type}{item.slot?` · ${item.slot}`:''}</div>
+              {item.effect&&<div className="command-individual-effect">{item.effect}</div>}
+              {item.quirk&&<div className="muted small">AI QUIRK: {item.quirk}</div>}
+              {statBonusSummary(item.stat_bonuses)&&<div className="item-stat-bonus-summary">EQUIPPED BONUS · {statBonusSummary(item.stat_bonuses)}</div>}
+            </article>
+          })}
+        </div>
       </div>}
 
       {commandPreview.action.kind==='health'&&<div className="command-action-card health-command-card">
