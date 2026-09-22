@@ -20,9 +20,21 @@ const schema = {
     },
     effect: { type: 'string' },
     quirk: { type: 'string' },
+    stat_bonuses: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        Strength: { type: 'integer', minimum: 0, maximum: 999 },
+        Dexterity: { type: 'integer', minimum: 0, maximum: 999 },
+        Intelligence: { type: 'integer', minimum: 0, maximum: 999 },
+        Constitution: { type: 'integer', minimum: 0, maximum: 999 },
+        Charisma: { type: 'integer', minimum: 0, maximum: 999 },
+      },
+      required: ['Strength','Dexterity','Intelligence','Constitution','Charisma'],
+    },
     opening_message: { type: 'string' },
   },
-  required: ['name','item_type','slot','effect','quirk','opening_message'],
+  required: ['name','item_type','slot','effect','quirk','stat_bonuses','opening_message'],
 }
 
 type Reward = {
@@ -31,6 +43,7 @@ type Reward = {
   slot: 'Head'|'Body'|'Hands'|'Feet'|'Weapon 1'|'Weapon 2'|'Accessory 1'|'Accessory 2'|null
   effect: string
   quirk: string
+  stat_bonuses?: { Strength:number; Dexterity:number; Intelligence:number; Constitution:number; Charisma:number }
   opening_message: string
 }
 
@@ -112,7 +125,7 @@ Deno.serve(async (req) => {
 
     const [skillsRes, itemsRes] = await Promise.all([
       caller.from('skills').select('name,rank').eq('character_id', character.id),
-      caller.from('character_items').select('quantity,equipped_slot,item:items(name,rarity,item_type,slot,effect,quirk)').eq('character_id', character.id),
+      caller.from('character_items').select('quantity,equipped_slot,item:items(name,rarity,item_type,slot,effect,quirk,strength_bonus,dexterity_bonus,intelligence_bonus,constitution_bonus,charisma_bonus)').eq('character_id', character.id),
     ])
     if (skillsRes.error) throw skillsRes.error
     if (itemsRes.error) throw itemsRes.error
@@ -157,6 +170,13 @@ Deno.serve(async (req) => {
           : null) as Reward['slot'],
         effect: String((preset as any).effect ?? ''),
         quirk: String((preset as any).quirk ?? ''),
+        stat_bonuses: {
+          Strength: Number((preset as any).stat_bonuses?.Strength ?? 0),
+          Dexterity: Number((preset as any).stat_bonuses?.Dexterity ?? 0),
+          Intelligence: Number((preset as any).stat_bonuses?.Intelligence ?? 0),
+          Constitution: Number((preset as any).stat_bonuses?.Constitution ?? 0),
+          Charisma: Number((preset as any).stat_bonuses?.Charisma ?? 0),
+        },
         opening_message: String((preset as any).opening_message ?? 'The Dungeon has issued a direct supply allocation.'),
       }
       source = 'gm-command'
@@ -165,7 +185,7 @@ Deno.serve(async (req) => {
         const openai = new OpenAI({ apiKey })
         const response = await openai.responses.create({
           model: Deno.env.get('OPENAI_MODEL') || 'gpt-5.6-luna',
-          instructions: `You are the Dungeon AI generating the contents of a tabletop RPG loot box. The box rarity is fixed and MUST NOT be upgraded. Generate exactly one surprising, funny, useful item that fits the crawler without simply duplicating their existing gear. Bronze items are useful, situational, consumable, or mildly weird. Silver items are meaningful keeper items with a strong option or once-per-combat/session ability. Gold items are rare, character-defining, and may bend one normal rule, but should not trivialize the game. Prefer new tactical behavior over raw stacking bonuses. Extra attacks should be limited or conditional. Keep effects short enough to fit on an item card. Quirks can be absurd and flavorful but should not make the item unusable. opening_message is a short Dungeon AI reveal line, sarcastic and entertaining. Never provide real-world dangerous instructions.`,
+          instructions: `You are the Dungeon AI generating the contents of a tabletop RPG loot box. The box rarity is fixed and MUST NOT be upgraded. Generate exactly one surprising, funny, useful item that fits the crawler without simply duplicating their existing gear. Bronze items are useful, situational, consumable, or mildly weird. Silver items are meaningful keeper items with a strong option or once-per-combat/session ability. Gold items are rare, character-defining, and may bend one normal rule, but should not trivialize the game. Prefer new tactical behavior over raw stacking bonuses, but items may boost core stats while equipped. Always return stat_bonuses for Strength, Dexterity, Intelligence, Constitution, and Charisma, using 0 for stats not boosted. Keep bonuses modest by rarity: Bronze usually 0-1 total points, Silver 1-2, Gold 2-3 unless a rare effect clearly warrants more. Stat bonuses only matter when the item is equipped, so consumables and non-equippable utility items should normally have all zeroes. Extra attacks should be limited or conditional. Keep effects short enough to fit on an item card. Quirks can be absurd and flavorful but should not make the item unusable. opening_message is a short Dungeon AI reveal line, sarcastic and entertaining. Never provide real-world dangerous instructions.`,
           input: JSON.stringify(context),
           text: { format: { type: 'json_schema', name: 'loot_box_reward', strict: true, schema } },
         })
@@ -199,6 +219,7 @@ Deno.serve(async (req) => {
         slot: reward.slot ?? undefined,
         effect: reward.effect,
         quirk: reward.quirk,
+        statBonuses: reward.stat_bonuses ?? { Strength:0, Dexterity:0, Intelligence:0, Constitution:0, Charisma:0 },
       },
     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   } catch (error) {
