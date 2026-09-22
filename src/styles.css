@@ -2121,3 +2121,97 @@ select:disabled,input:disabled,textarea:disabled{opacity:.55}
 .roster-copy .health-bar-wrap{
   flex-wrap:nowrap!important;
 }
+
+
+/* v1.8 — all core-stat item bonuses */
+.item-stat-bonus-summary{
+  margin-top:8px;
+  padding:7px 9px;
+  border:1px solid #5a4a22;
+  border-left:3px solid var(--warning);
+  background:#19150c;
+  color:#e4c873;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:.66rem;
+  font-weight:800;
+  letter-spacing:.035em;
+}
+.gm-stat-bonus-fields{
+  margin:0;
+  padding:11px;
+  border:1px solid #44484b;
+  background:#111315;
+}
+.gm-stat-bonus-fields legend{
+  padding:0 7px;
+  color:var(--warning);
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:.67rem;
+  font-weight:900;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+.gm-stat-bonus-inputs{
+  display:grid;
+  grid-template-columns:repeat(5,minmax(0,1fr));
+  gap:7px;
+}
+.gm-stat-bonus-inputs label{
+  margin:0!important;
+  min-width:0;
+  font-size:.68rem;
+  text-align:center;
+}
+.gm-stat-bonus-inputs input{
+  width:100%;
+  min-width:0;
+  text-align:center;
+  padding-left:6px;
+  padding-right:6px;
+}
+.gm-item-stat-bonuses{
+  width:100%;
+  display:grid;
+  grid-template-columns:repeat(5,minmax(72px,1fr));
+  gap:6px;
+  margin:7px 0 2px;
+  padding-top:8px;
+  border-top:1px solid #363a3d;
+}
+.gm-item-stat-bonus-row{
+  display:grid;
+  grid-template-columns:1fr 30px 30px 30px;
+  align-items:center;
+  gap:4px;
+  min-width:0;
+  padding:5px;
+  border:1px solid #34383b;
+  background:#111315;
+}
+.gm-item-stat-bonus-row>span{
+  color:#aaa39a;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:.58rem;
+  font-weight:900;
+  letter-spacing:.04em;
+}
+.gm-item-stat-bonus-row>strong{
+  text-align:center;
+  color:#e9c766;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:.68rem;
+}
+.gm-item-stat-bonus-row .stat-step{
+  width:30px!important;
+  min-height:30px!important;
+  padding:2px!important;
+}
+@media(max-width:1050px){
+  .gm-item-stat-bonuses{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:720px){
+  .gm-stat-bonus-inputs{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:460px){
+  .gm-stat-bonus-inputs,.gm-item-stat-bonuses{grid-template-columns:1fr}
+}
