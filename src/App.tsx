@@ -1029,15 +1029,15 @@ function GM({gameId,characters,refresh}:{gameId:string;characters:Character[];re
                 <summary>Item values & stat bonuses</summary>
                 <div className="gm-core-value-editor">
                   <span className="muted small">Core value</span>
-                  <button className="button stat-step" onClick={e=>{e.preventDefault();void rpc('gm_adjust_item_core_value',{p_character_item_id:i.id,p_delta:-1})}}>−</button>
+                  <button className="button stat-step" onClick={()=>void rpc('gm_adjust_item_core_value',{p_character_item_id:i.id,p_delta:-1})}>−</button>
                   <strong>{i.coreValue}</strong>
-                  <button className="button stat-step" onClick={e=>{e.preventDefault();void rpc('gm_adjust_item_core_value',{p_character_item_id:i.id,p_delta:1})}>+</button>
+                  <button className="button stat-step" onClick={()=>void rpc('gm_adjust_item_core_value',{p_character_item_id:i.id,p_delta:1})}>+</button>
                 </div>
                 <div className="gm-item-stat-bonuses">{stats.map(stat=><div className="gm-item-stat-bonus-row" key={stat}>
                   <span>{stat.slice(0,3).toUpperCase()}</span>
-                  <button className="button stat-step" onClick={e=>{e.preventDefault();void rpc('gm_adjust_item_stat_bonus',{p_character_item_id:i.id,p_stat:stat,p_delta:-1})}}>−</button>
+                  <button className="button stat-step" onClick={()=>void rpc('gm_adjust_item_stat_bonus',{p_character_item_id:i.id,p_stat:stat,p_delta:-1})}>−</button>
                   <strong>+{i.statBonuses[stat]}</strong>
-                  <button className="button stat-step" onClick={e=>{e.preventDefault();void rpc('gm_adjust_item_stat_bonus',{p_character_item_id:i.id,p_stat:stat,p_delta:1})}>+</button>
+                  <button className="button stat-step" onClick={()=>void rpc('gm_adjust_item_stat_bonus',{p_character_item_id:i.id,p_stat:stat,p_delta:1})}>+</button>
                 </div>)}</div>
               </details>
               <button className="button" onClick={()=>void renameItem(i.id,i.name)}>Rename</button>
@@ -1057,15 +1057,15 @@ function GM({gameId,characters,refresh}:{gameId:string;characters:Character[];re
                     <summary>Item values & stat bonuses</summary>
                     <div className="gm-core-value-editor">
                       <span className="muted small">Core value</span>
-                      <button className="button stat-step" onClick={e=>{e.preventDefault();void rpc('gm_adjust_item_core_value',{p_character_item_id:i.id,p_delta:-1})}}>−</button>
+                      <button className="button stat-step" onClick={()=>void rpc('gm_adjust_item_core_value',{p_character_item_id:i.id,p_delta:-1})}>−</button>
                       <strong>{i.coreValue}</strong>
-                      <button className="button stat-step" onClick={e=>{e.preventDefault();void rpc('gm_adjust_item_core_value',{p_character_item_id:i.id,p_delta:1})}>+</button>
+                      <button className="button stat-step" onClick={()=>void rpc('gm_adjust_item_core_value',{p_character_item_id:i.id,p_delta:1})}>+</button>
                     </div>
                     <div className="gm-item-stat-bonuses">{stats.map(stat=><div className="gm-item-stat-bonus-row" key={stat}>
                       <span>{stat.slice(0,3).toUpperCase()}</span>
-                      <button className="button stat-step" onClick={e=>{e.preventDefault();void rpc('gm_adjust_item_stat_bonus',{p_character_item_id:i.id,p_stat:stat,p_delta:-1})}}>−</button>
+                      <button className="button stat-step" onClick={()=>void rpc('gm_adjust_item_stat_bonus',{p_character_item_id:i.id,p_stat:stat,p_delta:-1})}>−</button>
                       <strong>+{i.statBonuses[stat]}</strong>
-                      <button className="button stat-step" onClick={e=>{e.preventDefault();void rpc('gm_adjust_item_stat_bonus',{p_character_item_id:i.id,p_stat:stat,p_delta:1})}>+</button>
+                      <button className="button stat-step" onClick={()=>void rpc('gm_adjust_item_stat_bonus',{p_character_item_id:i.id,p_stat:stat,p_delta:1})}>+</button>
                     </div>)}</div>
                   </details>
                   <button className="button" onClick={()=>void renameItem(i.id,i.name)}>Rename</button>
