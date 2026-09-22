@@ -4,7 +4,7 @@ import type { Character, DungeonVerdict } from './lib/types'
 import { supabase, supabaseConfigured } from './lib/supabase'
 import {
   applyDungeonVerdict, completeCharacterSetup, createGame, createGmLogin, deleteGame, ensureAnonymousUser, joinGame,
-  listMyGames, loadCharacters, loadDungeonStory, openLootBox, persistCharacterDiff, signInGm, signOutUser, subscribeToGame, uploadCharacterPortrait,
+  listMyGames, loadCharacters, loadDungeonStory, openLootBox, persistCharacterDiff, recoverCrawler, signInGm, signOutUser, subscribeToGame, uploadCharacterPortrait,
 } from './lib/live'
 import type { DungeonStoryEvent, GameSummary } from './lib/live'
 
@@ -406,6 +406,25 @@ function GM({gameId,characters,refresh}:{gameId:string;characters:Character[];re
     await refresh()
     setMsg(`${character.name} was removed from the game.`)
   }
+  async function copyRecoveryCode(character:Character){
+    try{
+      await navigator.clipboard.writeText(character.recoveryCode)
+      setMsg(`Recovery code copied for ${character.name}.`)
+    }catch{
+      setMsg(`Recovery code: ${character.recoveryCode}`)
+    }
+  }
+
+  async function regenerateRecoveryCode(character:Character){
+    if(!supabase)return
+    const confirmed=window.confirm(`Regenerate ${character.name}'s recovery code? Their old code will stop working immediately.`)
+    if(!confirmed)return
+    setMsg('')
+    const {data,error}=await supabase.rpc('gm_regenerate_recovery_code',{p_character_id:character.id})
+    if(error){setMsg(error.message);return}
+    await refresh()
+    setMsg(`New recovery code for ${character.name}: ${String(data)}`)
+  }
   if(!current&&tab==='profiles')return <section className="panel pad"><h3>Waiting for crawlers</h3><p className="muted">Share the join code. Profiles appear here automatically.</p></section>
   return <>
     <nav className="tabs"><button className={`button ${tab==='profiles'?'primary':''}`} onClick={()=>setTab('profiles')}><Users size={16}/>Party Profiles</button><button className={`button ${tab==='judge'?'primary':''}`} onClick={()=>setTab('judge')}><Sparkles size={16}/>Dungeon Judge</button><button className={`button ${tab==='story'?'primary':''}`} onClick={()=>setTab('story')}><ScrollText size={16}/>Story Log</button></nav>
@@ -428,6 +447,17 @@ function GM({gameId,characters,refresh}:{gameId:string;characters:Character[];re
         </div>
         <div className="gm-profile-main"><h2>{current.name}</h2><div className="muted">Level {current.level} · {current.background}</div><div className="gm-profile-health"><div className="eyebrow">Health</div><Hearts c={current.currentHealth} m={current.maxHealth}/></div></div>
         <div className="gm-profile-actions"><button className="button danger-button" onClick={()=>void deletePlayer(current)}>Delete Player</button></div>
+      </section>
+      <section className="panel pad crawler-recovery-panel">
+        <div>
+          <div className="eyebrow">Crawler Recovery</div>
+          <h3>{current.recoveryCode}</h3>
+          <div className="muted small">Send this code with the game join code if {current.name} needs to reclaim this crawler on another device.</div>
+        </div>
+        <div className="crawler-recovery-actions">
+          <button className="button primary" onClick={()=>void copyRecoveryCode(current)}>Copy Code</button>
+          <button className="button" onClick={()=>void regenerateRecoveryCode(current)}>Regenerate</button>
+        </div>
       </section>
       <section className="panel pad"><div className="quick-actions"><button className="button primary" onClick={()=>void rpc('gm_level_up',{p_character_id:current.id,p_levels:1,p_points_per_level:1})}>Level Up +1</button><button className="button" onClick={()=>void supabase?.from('characters').update({current_health:Math.max(0,current.currentHealth-1)}).eq('id',current.id).then(()=>refresh())}>−1 Health</button><button className="button" onClick={()=>void supabase?.from('characters').update({current_health:Math.min(current.maxHealth,current.currentHealth+1)}).eq('id',current.id).then(()=>refresh())}>+1 Health</button></div><div className="muted small">Unspent stat points: {current.unspentStatPoints}</div><div className="stats-grid">{stats.map(s=><div className="stat" key={s}><span>{s}</span><strong>+{current.stats[s]}</strong><div className="inline-actions"><button className="button" onClick={()=>void rpc('gm_adjust_stat',{p_character_id:current.id,p_stat:s,p_delta:-1})}>−</button><button className="button" onClick={()=>void rpc('gm_adjust_stat',{p_character_id:current.id,p_stat:s,p_delta:1})}>+</button></div></div>)}</div></section>
       <div className="two-col">
@@ -492,10 +522,30 @@ function Lobby({userId,isAnonymous,accountEmail,games,reload,open}:{userId:strin
   const [busy,setBusy]=useState(false)
   const [loginEmail,setLoginEmail]=useState('')
   const [loginPassword,setLoginPassword]=useState('')
+  const [recoverGameCode,setRecoverGameCode]=useState('')
+  const [recoveryCode,setRecoveryCode]=useState('')
   const ownsGame=games.some(g=>g.isOwner)
 
   async function make(){setBusy(true);try{const r=await createGame(name);setMsg(`Game created. Join code: ${r.joinCode}`);const g=(await reload()).find(x=>x.id===r.gameId);if(g)await open(g)}catch(e){setMsg(e instanceof Error?e.message:'Create failed')}finally{setBusy(false)}}
   async function join(){setBusy(true);try{await joinGame(code);const list=await reload();const g=list.find(x=>x.joinCode===code.trim().toUpperCase());if(g)await open(g)}catch(e){setMsg(e instanceof Error?e.message:'Join failed')}finally{setBusy(false)}}
+
+  async function recover(){
+    if(!recoverGameCode.trim()||!recoveryCode.trim())return
+    setBusy(true);setMsg('')
+    try{
+      await recoverCrawler(recoverGameCode,recoveryCode)
+      const list=await reload()
+      const normalized=recoverGameCode.trim().toUpperCase()
+      const g=list.find(x=>x.joinCode===normalized)
+      if(!g)throw new Error('Crawler recovered, but the game could not be opened. Refresh and try again.')
+      setMsg('Crawler recovered. Welcome back.')
+      await open(g)
+    }catch(e){
+      setMsg(e instanceof Error?e.message:'Could not recover crawler')
+    }finally{
+      setBusy(false)
+    }
+  }
 
   async function createLogin(){
     if(!loginEmail.trim()||loginPassword.length<8)return
@@ -584,6 +634,17 @@ function Lobby({userId,isAnonymous,accountEmail,games,reload,open}:{userId:strin
       <section className="panel pad"><h3>Create Game</h3><input value={name} onChange={e=>setName(e.target.value)}/><button className="button primary wide" disabled={busy} onClick={()=>void make()}>Create Game</button></section>
       <section className="panel pad"><h3>Join Game</h3><input value={code} onChange={e=>setCode(e.target.value.toUpperCase())} placeholder="JOIN CODE"/><button className="button primary wide" disabled={busy} onClick={()=>void join()}>Join Game</button></section>
     </div>
+
+    <section className="panel pad recovery-login-panel">
+      <div className="section-title"><div><div className="eyebrow">Returning Player</div><h3>Recover My Crawler</h3></div></div>
+      <p className="muted small">On a new device, enter the game join code plus the recovery code your GM gave you.</p>
+      <div className="recovery-login-fields">
+        <label>Game code<input value={recoverGameCode} onChange={e=>setRecoverGameCode(e.target.value.toUpperCase())} placeholder="JOIN CODE"/></label>
+        <label>Crawler recovery code<input value={recoveryCode} onChange={e=>setRecoveryCode(e.target.value.toUpperCase())} placeholder="K7M4-P2Q9"/></label>
+      </div>
+      <button className="button primary wide" disabled={busy||!recoverGameCode.trim()||!recoveryCode.trim()} onClick={()=>void recover()}>Recover My Crawler</button>
+      <div className="muted small">Recovering moves control of that crawler to this device. The old device will no longer control it.</div>
+    </section>
     {msg&&<div className="status-message">{msg}</div>}
   </div>
 }
