@@ -755,6 +755,7 @@ function StoryLog({gameId,characters}:{gameId:string;characters:Character[]}) {
   const [events,setEvents]=useState<DungeonStoryEvent[]>([])
   const [loading,setLoading]=useState(true)
   const [error,setError]=useState('')
+  const [liveStatus,setLiveStatus]=useState<'connecting'|'live'|'reconnecting'>('connecting')
 
   async function reload(){
     setError('')
@@ -1266,7 +1267,26 @@ export default function App(){
   async function open(g:GameSummary){setGame(g);localStorage.setItem('crawler-active-game',g.id);await refresh(g)}
 
   useEffect(()=>{if(!supabaseConfigured){setLoading(false);return}void(async()=>{try{const u=await ensureAnonymousUser();setUserId(u.id);setIsAnonymous(Boolean(u.is_anonymous));setAccountEmail(String(u.email??''));const gs=await listMyGames(u.id);setGames(gs);const remembered=gs.find(g=>g.id===localStorage.getItem('crawler-active-game'));if(remembered)await open(remembered)}catch(e){setError(e instanceof Error?e.message:'Startup failed')}finally{setLoading(false)}})()},[])
-  useEffect(()=>{if(!game)return;const ch=subscribeToGame(game.id,()=>void refresh(game));return()=>{void supabase?.removeChannel(ch)}},[game?.id])
+  useEffect(()=>{
+    if(!game)return
+    setLiveStatus('connecting')
+    const ch=subscribeToGame(
+      game.id,
+      ()=>void refresh(game),
+      status=>setLiveStatus(status==='SUBSCRIBED'?'live':'reconnecting'),
+    )
+    return()=>{void supabase?.removeChannel(ch)}
+  },[game?.id])
+  useEffect(()=>{
+    if(!game)return
+    const sync=()=>{if(document.visibilityState==='visible')void refresh(game)}
+    window.addEventListener('focus',sync)
+    document.addEventListener('visibilitychange',sync)
+    return()=>{
+      window.removeEventListener('focus',sync)
+      document.removeEventListener('visibilitychange',sync)
+    }
+  },[game?.id])
 
   if(!supabaseConfigured)return <div className="app-shell"><section className="panel pad"><h2>Crawler needs Supabase configuration</h2><p className="muted">Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in the deployment environment.</p></section></div>
   if(loading)return <div className="app-shell"><section className="panel pad system-loading-panel"><div className="system-loading-mark">⚠</div><div><div className="broadcast-kicker">DUNGEON NETWORK</div><h2>Opening the Dungeon…</h2><div className="system-loading-bar"><span/></div></div></section></div>
@@ -1286,7 +1306,7 @@ export default function App(){
         <button className="button lobby-return-button" onClick={()=>{setGame(null);localStorage.removeItem('crawler-active-game')}}>Lobby</button>
       </div>
     </header>
-    <div className="system-strip"><span className="system-dot"/><strong>SYSTEM ONLINE</strong><span>Live multiplayer connected</span><span className="system-strip-spacer"/><span className="system-floor">FLOOR {game.floorNumber}</span></div>
+    <div className={`system-strip live-status-${liveStatus}`}><span className="system-dot"/><strong>{liveStatus==='live'?'SYSTEM ONLINE':liveStatus==='connecting'?'CONNECTING':'RECONNECTING'}</strong><span>{liveStatus==='live'?'Live multiplayer connected':'Syncing live game state…'}</span><span className="system-strip-spacer"/><span className="system-floor">FLOOR {game.floorNumber}</span></div>
     {game.role==='gm'?<GM gameId={game.id} characters={characters} refresh={()=>refresh(game)}/>:me?!me.setupComplete?<Setup character={me} onDone={()=>refresh(game)}/>:<Player gameId={game.id} character={me} refresh={()=>refresh(game)}/>:<section className="panel pad"><p>Preparing your crawler…</p></section>}
   </div>
 }
