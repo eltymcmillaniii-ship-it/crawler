@@ -12,6 +12,13 @@ export type GameSummary = {
   isOwner: boolean
 }
 
+export type DungeonStoryEvent = {
+  id: string
+  eventText: string
+  verdict: DungeonVerdict
+  createdAt: string
+}
+
 function client() {
   if (!supabase) throw new Error('Supabase is not configured.')
   return supabase
@@ -349,6 +356,28 @@ export async function applyDungeonVerdict(gameId: string, eventText: string, ver
   if (error) throw error
 }
 
+export async function loadDungeonStory(gameId: string): Promise<DungeonStoryEvent[]> {
+  const sb = client()
+  const { data, error } = await sb
+    .from('dungeon_events')
+    .select('id,event_text,ai_verdict,created_at')
+    .eq('game_id', gameId)
+    .eq('applied', true)
+    .order('created_at', { ascending: false })
+    .limit(200)
+  if (error) throw error
+
+  return (data ?? []).flatMap((row: any) => {
+    if (!row.ai_verdict || typeof row.ai_verdict !== 'object') return []
+    return [{
+      id: String(row.id),
+      eventText: String(row.event_text ?? ''),
+      verdict: row.ai_verdict as DungeonVerdict,
+      createdAt: String(row.created_at ?? ''),
+    }]
+  })
+}
+
 export async function listTradeTargets(gameId: string): Promise<TradeTarget[]> {
   const sb = client()
   const { data, error } = await sb.rpc('list_trade_targets', { p_game_id: gameId })
@@ -443,5 +472,6 @@ export function subscribeToGame(gameId: string, onChange: () => void): RealtimeC
     .on('postgres_changes', { event:'*', schema:'public', table:'achievements' }, refresh)
     .on('postgres_changes', { event:'*', schema:'public', table:'loot_boxes' }, refresh)
     .on('postgres_changes', { event:'*', schema:'public', table:'trades', filter:`game_id=eq.${gameId}` }, refresh)
+    .on('postgres_changes', { event:'*', schema:'public', table:'dungeon_events', filter:`game_id=eq.${gameId}` }, refresh)
     .subscribe()
 }
