@@ -2357,3 +2357,109 @@ select:disabled,input:disabled,textarea:disabled{opacity:.55}
 .system-strip.live-status-reconnecting .system-dot{
   animation:dungeonPulse .75s ease-in-out infinite;
 }
+
+
+/* v1.8.3 — GM roster skills & levels dropdown */
+.roster-card-shell{
+  margin:8px 0;
+  border:1px solid transparent;
+  border-radius:3px;
+}
+.roster-card-shell.selected{
+  border-color:#5f2823;
+  background:rgba(226,56,47,.025);
+}
+.roster-card-shell .roster-card{
+  margin:0;
+  border-radius:2px 2px 0 0;
+}
+.roster-card-shell .roster-card.selected{
+  outline:0;
+  border-color:var(--accent);
+}
+.roster-skills-dropdown{
+  border:1px solid #34383b;
+  border-top:0;
+  background:#0f1113;
+}
+.roster-skills-dropdown>summary{
+  position:relative;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  padding:8px 30px 8px 10px;
+  cursor:pointer;
+  list-style:none;
+  color:#aaa39a;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:.6rem;
+  font-weight:900;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+  user-select:none;
+}
+.roster-skills-dropdown>summary::-webkit-details-marker{display:none}
+.roster-skills-dropdown>summary:after{
+  content:"+";
+  position:absolute;
+  right:10px;
+  top:50%;
+  transform:translateY(-50%);
+  color:var(--warning);
+  font-size:.9rem;
+}
+.roster-skills-dropdown[open]>summary{
+  border-bottom:1px solid #34383b;
+  color:#e2c265;
+}
+.roster-skills-dropdown[open]>summary:after{content:"−"}
+.roster-skill-count{
+  min-width:20px;
+  padding:2px 5px;
+  border:1px solid #43474a;
+  background:#17191b;
+  color:#d5cdc2;
+  text-align:center;
+  font-size:.55rem;
+}
+.roster-skills-list{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  padding:8px;
+}
+.roster-level-row,
+.roster-skill-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:6px 7px;
+  border:1px solid #2f3336;
+  background:#121416;
+  font-size:.67rem;
+}
+.roster-level-row{
+  border-color:#55451e;
+  background:#18150d;
+}
+.roster-level-row>span,
+.roster-skill-row>span{
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.roster-level-row>strong,
+.roster-skill-row>strong{
+  flex:none;
+  color:#e8c763;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+.roster-skills-empty{
+  padding:8px;
+  color:#747873;
+  text-align:center;
+  font-size:.65rem;
+}
