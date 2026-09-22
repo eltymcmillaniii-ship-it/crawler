@@ -2215,3 +2215,127 @@ select:disabled,input:disabled,textarea:disabled{opacity:.55}
 @media(max-width:460px){
   .gm-stat-bonus-inputs,.gm-item-stat-bonuses{grid-template-columns:1fr}
 }
+
+
+/* v1.8.1 — GM party stat overview + collapsible item tuning */
+.roster-card{
+  align-items:flex-start;
+}
+.roster-copy{
+  min-width:0;
+}
+.roster-core-stats{
+  display:grid;
+  grid-template-columns:repeat(5,minmax(0,1fr));
+  gap:4px;
+  width:100%;
+  margin-top:8px;
+  padding-top:7px;
+  border-top:1px solid #303437;
+}
+.roster-stat{
+  min-width:0;
+  padding:5px 3px;
+  border:1px solid #303437;
+  background:#101214;
+  text-align:center;
+}
+.roster-stat>span{
+  display:block;
+  color:#787d7f;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:.48rem;
+  font-weight:900;
+  letter-spacing:.035em;
+}
+.roster-stat>strong{
+  display:block;
+  margin-top:1px;
+  color:#eee6db;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:.68rem;
+  line-height:1;
+}
+.roster-stat>small{
+  display:block;
+  margin-top:3px;
+  color:#d4ad48;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:.43rem;
+  line-height:1.05;
+}
+.roster-stat.has-gear-bonus{
+  border-color:#574719;
+  background:#18150d;
+}
+.gm-item-bonus-editor{
+  width:100%;
+  margin:5px 0 2px;
+  border:1px solid #3b3f42;
+  background:#0e1011;
+}
+.gm-item-bonus-editor>summary{
+  position:relative;
+  padding:9px 30px 9px 10px;
+  cursor:pointer;
+  list-style:none;
+  color:#b8b0a5;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:.65rem;
+  font-weight:900;
+  letter-spacing:.055em;
+  text-transform:uppercase;
+  user-select:none;
+}
+.gm-item-bonus-editor>summary::-webkit-details-marker{display:none}
+.gm-item-bonus-editor>summary:after{
+  content:"+";
+  position:absolute;
+  right:10px;
+  top:50%;
+  transform:translateY(-50%);
+  color:var(--warning);
+  font-size:1rem;
+}
+.gm-item-bonus-editor[open]>summary{
+  border-bottom:1px solid #35393c;
+  color:#e6c76f;
+}
+.gm-item-bonus-editor[open]>summary:after{content:"−"}
+.gm-item-bonus-editor>summary:hover{
+  background:#151719;
+}
+.gm-core-value-editor{
+  display:grid;
+  grid-template-columns:minmax(80px,1fr) 32px 38px 32px;
+  align-items:center;
+  gap:5px;
+  padding:9px 9px 0;
+}
+.gm-core-value-editor>strong{
+  text-align:center;
+  color:#f0e7da;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+.gm-item-bonus-editor .gm-item-stat-bonuses{
+  padding:8px 9px 9px;
+  margin:8px 0 0;
+}
+.gm-item-actions>.button{
+  margin-top:4px;
+}
+@media(max-width:1100px){
+  .roster-core-stats{
+    grid-template-columns:repeat(3,minmax(0,1fr));
+  }
+}
+@media(max-width:800px){
+  .roster-core-stats{
+    grid-template-columns:repeat(5,minmax(0,1fr));
+  }
+}
+@media(max-width:480px){
+  .roster-core-stats{
+    grid-template-columns:repeat(3,minmax(0,1fr));
+  }
+}
