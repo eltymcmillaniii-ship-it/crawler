@@ -7,6 +7,7 @@ export type GameSummary = {
   name: string
   joinCode: string
   floorNumber: number
+  floorTheme: string
   role: Role
   joinedAt: string
   isOwner: boolean
@@ -88,7 +89,7 @@ export async function listMyGames(userId: string): Promise<GameSummary[]> {
   const sb = client()
   const { data, error } = await sb
     .from('game_members')
-    .select('game_id,role,joined_at,games(id,name,join_code,floor_number,created_by)')
+    .select('game_id,role,joined_at,games(id,name,join_code,floor_number,floor_theme,created_by)')
     .eq('user_id', userId)
     .order('joined_at', { ascending: false })
   if (error) throw error
@@ -100,6 +101,7 @@ export async function listMyGames(userId: string): Promise<GameSummary[]> {
       name: String(game.name),
       joinCode: String(game.join_code),
       floorNumber: Number(game.floor_number ?? 1),
+      floorTheme: String(game.floor_theme ?? ''),
       role: row.role as Role,
       joinedAt: String(row.joined_at ?? ''),
       isOwner: String(game.created_by ?? '') === userId,
@@ -119,6 +121,17 @@ export async function createGame(name: string): Promise<{ gameId: string; joinCo
 export async function deleteGame(gameId: string) {
   const sb = client()
   const { error } = await sb.rpc('delete_game', { p_game_id: gameId })
+  if (error) throw error
+}
+
+export async function updateGameSettings(gameId: string, name: string, floorNumber: number, floorTheme: string) {
+  const sb = client()
+  const { error } = await sb.rpc('gm_update_game_settings', {
+    p_game_id: gameId,
+    p_name: name.trim(),
+    p_floor_number: floorNumber,
+    p_floor_theme: floorTheme.trim(),
+  })
   if (error) throw error
 }
 
