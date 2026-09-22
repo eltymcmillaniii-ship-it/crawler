@@ -2536,3 +2536,33 @@ select:disabled,input:disabled,textarea:disabled{opacity:.55}
   .game-theme-field{grid-column:auto}
   .floor-theme-preview{grid-template-columns:1fr}
 }
+
+
+/* v1.9.1 — Dungeon Command personality */
+.command-ai-broadcast{
+  display:grid;
+  grid-template-columns:auto 1fr;
+  gap:10px;
+  align-items:start;
+  margin:10px 0 14px;
+  padding:10px 12px;
+  border:1px solid #5a4220;
+  border-left:4px solid var(--warning);
+  background:linear-gradient(90deg,rgba(227,166,41,.07),transparent 45%),#121311;
+}
+.command-ai-broadcast>span{
+  color:var(--warning);
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:.6rem;
+  font-weight:900;
+  letter-spacing:.08em;
+  white-space:nowrap;
+}
+.command-ai-broadcast>strong{
+  color:#e7ddd0;
+  font-size:.78rem;
+  line-height:1.35;
+}
+@media(max-width:560px){
+  .command-ai-broadcast{grid-template-columns:1fr}
+}
