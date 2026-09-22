@@ -9,7 +9,7 @@ import {
 import type { DungeonStoryEvent, GameSummary, PartyMember } from './lib/live'
 
 const stats = ['Strength','Dexterity','Intelligence','Constitution','Charisma'] as const
-const gearSlots: GearSlot[] = ['Head','Body','Hands','Feet','Weapon 1','Weapon 2','Accessory 1','Accessory 2']
+const gearSlots: GearSlot[] = ['Head','Shirt','Pants','Hands','Feet','Weapon 1','Weapon 2','Accessory 1','Accessory 2']
 
 function compatibleEquipSlots(slot?: GearSlot): GearSlot[] {
   if (!slot) return []
@@ -1087,7 +1087,7 @@ function GM({gameId,characters,refresh}:{gameId:string;characters:Character[];re
               <div className="gm-stat-bonus-inputs">{stats.map(stat=><label key={stat}>{stat}<input type="number" min={0} max={999} value={itemStatBonuses[stat]} onChange={e=>setItemStatBonuses(current=>({...current,[stat]:Math.max(0,Number(e.target.value)||0)}))}/></label>)}</div>
             </fieldset>
             <label>Item type<select value={itemType} onChange={e=>setItemType(e.target.value as typeof itemType)}><option>Weapon</option><option>Armor</option><option>Accessory</option><option>Consumable</option><option>Utility</option><option>Quest</option></select></label>
-            <label>Equipment slot<select value={itemSlot} onChange={e=>setItemSlot(e.target.value)}><option value="">None</option><option>Head</option><option>Body</option><option>Hands</option><option>Feet</option><option>Weapon 1</option><option>Weapon 2</option><option>Accessory 1</option><option>Accessory 2</option></select></label>
+            <label>Equipment slot<select value={itemSlot} onChange={e=>setItemSlot(e.target.value)}><option value="">None</option><option>Head</option><option>Shirt</option><option>Pants</option><option>Hands</option><option>Feet</option><option>Weapon 1</option><option>Weapon 2</option><option>Accessory 1</option><option>Accessory 2</option></select></label>
             <label>Quantity<input type="number" min={1} max={99} value={itemQuantity} onChange={e=>setItemQuantity(Number(e.target.value))}/></label>
             <label className="gm-form-wide">Effect<textarea rows={3} value={itemEffect} onChange={e=>setItemEffect(e.target.value)} placeholder="What does it actually do?"/></label>
             <label className="gm-form-wide">Quirk<input value={itemQuirk} onChange={e=>setItemQuirk(e.target.value)} placeholder="Optional weirdness"/></label>
