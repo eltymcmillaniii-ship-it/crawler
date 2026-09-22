@@ -1096,9 +1096,9 @@ function Lobby({userId,isAnonymous,accountEmail,games,reload,open}:{userId:strin
   }
 
   return <div className="app-shell">
-    <header className="topbar">
-      <div><h1>Crawler</h1><div className="muted">Multiplayer lobby</div></div>
-      <span className="pill">{isAnonymous?`Device ${userId.slice(0,8)}`:`GM · ${accountEmail}`}</span>
+    <header className="topbar broadcast-topbar">
+      <div className="topbar-copy"><div className="broadcast-kicker">DUNGEON NETWORK // ACCESS TERMINAL</div><h1>Crawler</h1><div className="muted">Multiplayer lobby</div></div>
+      <span className="pill topbar-role-pill">{isAnonymous?`DEVICE · ${userId.slice(0,8)}`:`GM ACCOUNT · ${accountEmail}`}</span>
     </header>
 
     {isAnonymous
@@ -1122,7 +1122,7 @@ function Lobby({userId,isAnonymous,accountEmail,games,reload,open}:{userId:strin
           <button className="button" disabled={busy} onClick={()=>void logout()}>Sign Out</button>
         </section>}
 
-    {games.length>0&&<section className="panel pad"><h3>My Games</h3><div className="game-list">{games.map(g=><div className="game-card-shell" key={g.id}><button className="game-card game-open-card" disabled={busy} onClick={()=>void open(g)}><div><strong>{g.name}</strong><div className="muted small">{g.isOwner?'Owner · ':g.role==='gm'?'GM · ':'Crawler · '}Floor {g.floorNumber}</div></div><span className="join-code">{g.joinCode}</span></button>{g.isOwner&&<button className="button danger-button game-delete-button" disabled={busy} onClick={()=>void removeGame(g)}>Delete Group</button>}</div>)}</div></section>}
+    {games.length>0&&<section className="panel pad games-panel"><div className="section-title"><div><div className="eyebrow">Active Groups</div><h3>My Games</h3></div><span className="pill">${games.length} total</span></div><div className="game-list">{games.map(g=><div className="game-card-shell" key={g.id}><button className="game-card game-open-card" disabled={busy} onClick={()=>void open(g)}><div><strong>{g.name}</strong><div className="muted small">{g.isOwner?'Owner · ':g.role==='gm'?'GM · ':'Crawler · '}Floor {g.floorNumber}</div></div><span className="join-code">{g.joinCode}</span></button>{g.isOwner&&<button className="button danger-button game-delete-button" disabled={busy} onClick={()=>void removeGame(g)}>Delete Group</button>}</div>)}</div></section>}
 
     <div className="two-col lobby-grid">
       <section className="panel pad"><h3>Create Game</h3><input value={name} onChange={e=>setName(e.target.value)}/><button className="button primary wide" disabled={busy} onClick={()=>void make()}>Create Game</button></section>
@@ -1161,10 +1161,24 @@ export default function App(){
   useEffect(()=>{if(!game)return;const ch=subscribeToGame(game.id,()=>void refresh(game));return()=>{void supabase?.removeChannel(ch)}},[game?.id])
 
   if(!supabaseConfigured)return <div className="app-shell"><section className="panel pad"><h2>Crawler needs Supabase configuration</h2><p className="muted">Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in the deployment environment.</p></section></div>
-  if(loading)return <div className="app-shell"><section className="panel pad"><h2>Opening the Dungeon…</h2></section></div>
-  if(error)return <div className="app-shell"><section className="panel pad"><h2>Could not enter</h2><p>{error}</p></section></div>
+  if(loading)return <div className="app-shell"><section className="panel pad system-loading-panel"><div className="system-loading-mark">⚠</div><div><div className="broadcast-kicker">DUNGEON NETWORK</div><h2>Opening the Dungeon…</h2><div className="system-loading-bar"><span/></div></div></section></div>
+  if(error)return <div className="app-shell"><section className="panel pad fatal-panel"><div className="broadcast-kicker">ACCESS FAILURE</div><h2>Could not enter</h2><p>{error}</p></section></div>
   if(!game)return <Lobby userId={userId} isAnonymous={isAnonymous} accountEmail={accountEmail} games={games} reload={()=>reloadGames(userId)} open={open}/>
 
   const me=characters.find(c=>c.userId===userId)
-  return <div className="app-shell"><header className="topbar"><div><h1>{game.name}</h1><div className="muted">Floor {game.floorNumber} · Join code <strong>{game.joinCode}</strong></div></div><button className="button" onClick={()=>{setGame(null);localStorage.removeItem('crawler-active-game')}}>Lobby</button></header><div className="live-banner">Live multiplayer connected.</div>{game.role==='gm'?<GM gameId={game.id} characters={characters} refresh={()=>refresh(game)}/>:me?!me.setupComplete?<Setup character={me} onDone={()=>refresh(game)}/>:<Player gameId={game.id} character={me} refresh={()=>refresh(game)}/>:<section className="panel pad"><p>Preparing your crawler…</p></section>}</div>
+  return <div className="app-shell">
+    <header className="topbar broadcast-topbar game-topbar">
+      <div className="topbar-copy">
+        <div className="broadcast-kicker">DUNGEON NETWORK // FLOOR {game.floorNumber}</div>
+        <h1>{game.name}</h1>
+        <div className="topbar-meta"><span>Floor {game.floorNumber}</span><span className="topbar-divider">/</span><span>Join code <strong className="join-code inline-code">{game.joinCode}</strong></span></div>
+      </div>
+      <div className="topbar-actions">
+        <span className={`pill topbar-role-pill role-${game.role}`}>{game.role==='gm'?'GM CONTROL':'CRAWLER'}</span>
+        <button className="button lobby-return-button" onClick={()=>{setGame(null);localStorage.removeItem('crawler-active-game')}}>Lobby</button>
+      </div>
+    </header>
+    <div className="system-strip"><span className="system-dot"/><strong>SYSTEM ONLINE</strong><span>Live multiplayer connected</span><span className="system-strip-spacer"/><span className="system-floor">FLOOR {game.floorNumber}</span></div>
+    {game.role==='gm'?<GM gameId={game.id} characters={characters} refresh={()=>refresh(game)}/>:me?!me.setupComplete?<Setup character={me} onDone={()=>refresh(game)}/>:<Player gameId={game.id} character={me} refresh={()=>refresh(game)}/>:<section className="panel pad"><p>Preparing your crawler…</p></section>}
+  </div>
 }
