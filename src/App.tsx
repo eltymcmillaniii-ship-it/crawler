@@ -947,25 +947,36 @@ function GM({gameId,characters,refresh}:{gameId:string;characters:Character[];re
     {msg&&<div className="status-message">{msg}</div>}
     {tab==='judge'&&<Judge gameId={gameId} characters={characters} refresh={refresh}/>}
     {tab==='story'&&<StoryLog gameId={gameId} characters={characters}/>}
-    {tab==='profiles'&&current&&<div className="gm-layout"><aside className="panel pad"><h3>Party</h3>{characters.map(c=>{const gearBonus=equippedStatBonuses(c);return <button className={`roster-card ${current.id===c.id?'selected':''}`} key={c.id} onClick={()=>setSelected(c.id)}>
-      <div className="roster-avatar">
-        {c.portraitUrl
-          ? <img className="gm-roster-image" src={c.portraitUrl} alt={`${c.name} portrait`}/>
-          : <Users size={28}/>}
-      </div>
-      <div className="roster-copy">
-        <strong>{c.name}</strong>
-        <div className="muted small">Level {c.level} · {c.background}</div>
-        <HealthBar c={c.currentHealth} m={c.maxHealth}/>
-        <div className="roster-core-stats" aria-label={`${c.name} current core stats`}>
-          {stats.map(stat=><div className={`roster-stat ${gearBonus[stat]>0?'has-gear-bonus':''}`} key={stat}>
-            <span>{stat.slice(0,3).toUpperCase()}</span>
-            <strong>+{c.stats[stat]+gearBonus[stat]}</strong>
-            {gearBonus[stat]>0&&<small>gear +{gearBonus[stat]}</small>}
-          </div>)}
+    {tab==='profiles'&&current&&<div className="gm-layout"><aside className="panel pad"><h3>Party</h3>{characters.map(c=>{const gearBonus=equippedStatBonuses(c);return <div className={`roster-card-shell ${current.id===c.id?'selected':''}`} key={c.id}>
+      <button className={`roster-card ${current.id===c.id?'selected':''}`} onClick={()=>setSelected(c.id)}>
+        <div className="roster-avatar">
+          {c.portraitUrl
+            ? <img className="gm-roster-image" src={c.portraitUrl} alt={`${c.name} portrait`}/>
+            : <Users size={28}/>}
         </div>
-      </div>
-    </button>})}</aside><main className="profile-stack">
+        <div className="roster-copy">
+          <strong>{c.name}</strong>
+          <div className="muted small">Level {c.level} · {c.background}</div>
+          <HealthBar c={c.currentHealth} m={c.maxHealth}/>
+          <div className="roster-core-stats" aria-label={`${c.name} current core stats`}>
+            {stats.map(stat=><div className={`roster-stat ${gearBonus[stat]>0?'has-gear-bonus':''}`} key={stat}>
+              <span>{stat.slice(0,3).toUpperCase()}</span>
+              <strong>+{c.stats[stat]+gearBonus[stat]}</strong>
+              {gearBonus[stat]>0&&<small>gear +{gearBonus[stat]}</small>}
+            </div>)}
+          </div>
+        </div>
+      </button>
+      <details className="roster-skills-dropdown">
+        <summary><span>Skills & Levels</span><span className="roster-skill-count">{c.skills.length}</span></summary>
+        <div className="roster-skills-list">
+          <div className="roster-level-row"><span>Crawler Level</span><strong>{c.level}</strong></div>
+          {c.skills.length
+            ? c.skills.map(skill=><div className="roster-skill-row" key={skill.name}><span>{skill.name}</span><strong>+{skill.rank}</strong></div>)
+            : <div className="roster-skills-empty">No skills yet.</div>}
+        </div>
+      </details>
+    </div>})}</aside><main className="profile-stack">
       <section className="panel pad gm-profile-hero">
         <div className="gm-profile-portrait">
           {current.portraitUrl
