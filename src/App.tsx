@@ -4,7 +4,7 @@ import type { Character, DungeonVerdict, GearSlot, LootOpenResult, TradeRecord, 
 import { supabase, supabaseConfigured } from './lib/supabase'
 import {
   acceptTrade, applyDungeonCommand, applyDungeonVerdict, cancelTrade, completeCharacterSetup, createGame, createGmLogin, createTrade, declineTrade, deleteGame, ensureAnonymousUser, joinGame,
-  equipCharacterItem, gmRenameItem, listMyGames, listMyTrades, listTradeableItems, listTradeTargets, loadCharacters, loadDungeonStory, loadPartyMembers, openLootBox, persistCharacterDiff, recoverCrawler, renameCharacter, signInGm, signOutUser, subscribeToGame, unequipCharacterItem, uploadCharacterPortrait,
+  equipCharacterItem, gmRenameItem, listMyGames, listMyTrades, listTradeableItems, listTradeTargets, loadCharacters, loadDungeonStory, loadPartyMembers, openLootBox, persistCharacterDiff, recoverCrawler, renameCharacter, signInGm, signOutUser, subscribeToGame, unequipCharacterItem, uploadCharacterPortrait, useCharacterItem,
 } from './lib/live'
 import type { DungeonStoryEvent, GameSummary, PartyMember } from './lib/live'
 
@@ -17,8 +17,32 @@ function compatibleEquipSlots(slot?: GearSlot): GearSlot[] {
   if (slot === 'Accessory 1' || slot === 'Accessory 2') return ['Accessory 1','Accessory 2']
   return [slot]
 }
+function heartValue(quarters:number){
+  const value=quarters/4
+  return Number.isInteger(value)?String(value):value.toFixed(2).replace(/0$/,'')
+}
+function heartDeltaLabel(quarters:number){
+  const sign=quarters>0?'+':quarters<0?'−':''
+  const absolute=Math.abs(quarters)
+  if(absolute===1)return `${sign}¼ heart`
+  if(absolute===2)return `${sign}½ heart`
+  if(absolute===3)return `${sign}¾ heart`
+  const hearts=absolute/4
+  return `${sign}${Number.isInteger(hearts)?hearts:hearts.toFixed(2)} heart${hearts===1?'':'s'}`
+}
 function Hearts({c,m}:{c:number;m:number}) {
-  return <div className="hearts">{Array.from({length:m},(_,i)=><span key={i} className={i<c?'heart':'heart empty'}>♥</span>)}</div>
+  const totalHearts=Math.ceil(m/4)
+  const current=Math.max(0,Math.min(c,m))
+  return <div className="health-display" aria-label={`${heartValue(current)} of ${heartValue(m)} hearts`}>
+    <div className="hearts">{Array.from({length:totalHearts},(_,i)=>{
+      const filled=Math.max(0,Math.min(4,current-(i*4)))
+      return <span className="heart-quartered" key={i} aria-hidden="true">
+        <span className="heart-base">♥</span>
+        {[1,2,3,4].map(q=><span key={q} className={`heart-fill heart-q${q} ${filled>=q?'filled':''}`}>♥</span>)}
+      </span>
+    })}</div>
+    <span className="heart-readout">{heartValue(current)} / {heartValue(m)} ♥</span>
+  </div>
 }
 
 type GeneratedClass = {
@@ -343,6 +367,14 @@ function Player({gameId,character,refresh}:{gameId:string;character:Character;re
       setMsg('Item returned to your backpack.')
     }catch(e){setMsg(e instanceof Error?e.message:'Could not unequip item')}finally{setBusy(false)}
   }
+  async function useItem(itemId:string,itemName:string){
+    setBusy(true);setMsg('')
+    try{
+      const healed=await useCharacterItem(itemId)
+      await refresh()
+      setMsg(`${itemName} used. Restored ${heartDeltaLabel(healed).replace('+','')}.`)
+    }catch(e){setMsg(e instanceof Error?e.message:'Could not use item')}finally{setBusy(false)}
+  }
   return <>
     <section className="panel pad player-header"><div><div className="player-name-row"><h2>{character.name} <span className="pill">Level {character.level}</span></h2><button className="button compact-action" disabled={busy} onClick={()=>void renameSelf()}>Rename</button></div><div className="muted">{character.background}</div></div><div><div className="eyebrow">Health</div><Hearts c={character.currentHealth} m={character.maxHealth}/></div></section>
     {character.unspentStatPoints>0&&<div className="live-banner level-up-broadcast"><div className="broadcast-kicker">SYSTEM OVERRIDE</div><strong>LEVEL UP!</strong><span>You have {character.unspentStatPoints} stat point{character.unspentStatPoints===1?'':'s'} to spend.</span></div>}
@@ -473,7 +505,11 @@ function Player({gameId,character,refresh}:{gameId:string;character:Character;re
           <div className="muted small">{i.rarity==='B'?'Bronze':i.rarity==='S'?'Silver':'Gold'} · {i.type} · Core {i.coreValue}{(i.quantity??1)>1?` ×${i.quantity}`:''}</div>
           <div>{i.effect}</div>
           {i.quirk&&<div className="muted small">Quirk: {i.quirk}</div>}
-          {slots.length?<div className="equip-actions">{slots.map(slot=><button className="button equip-button" disabled={busy} key={slot} onClick={()=>void equip(i.id,slot)}>Equip {slot}</button>)}</div>:<div className="muted small item-not-equippable">Not equippable.</div>}
+          {i.type==='Consumable'
+            ? <div className="consume-actions"><button className="button primary use-item-button" disabled={busy||character.currentHealth>=character.maxHealth} onClick={()=>void useItem(i.id,i.name)}>{character.currentHealth>=character.maxHealth?'Full Health':'Use Item'}</button></div>
+            : slots.length
+              ? <div className="equip-actions">{slots.map(slot=><button className="button equip-button" disabled={busy} key={slot} onClick={()=>void equip(i.id,slot)}>Equip {slot}</button>)}</div>
+              : <div className="muted small item-not-equippable">Not equippable.</div>}
         </div>
       }):<div className="muted">Empty.</div>}</div>
       <h3>Equipped Gear</h3>
@@ -547,7 +583,7 @@ function Judge({gameId,characters,refresh}:{gameId:string;characters:Character[]
     if(!supabase||!event.trim())return
     setBusy(true);setMsg('')
     try{
-      const {data,error}=await supabase.functions.invoke('dungeon-judge',{body:{gameId,event,tone:'unhinged',frequency:'balanced',characters:characters.map(c=>({id:c.id,name:c.name,level:c.level,stats:c.stats,health:[c.currentHealth,c.maxHealth],skills:c.skills,gear:Object.values(c.gear).filter(Boolean)}))}})
+      const {data,error}=await supabase.functions.invoke('dungeon-judge',{body:{gameId,event,tone:'unhinged',frequency:'balanced',characters:characters.map(c=>({id:c.id,name:c.name,level:c.level,stats:c.stats,health:[c.currentHealth/4,c.maxHealth/4],skills:c.skills,gear:Object.values(c.gear).filter(Boolean)}))}})
       if(error){
         let detail=error.message
         const response=(error as any).context as Response | undefined
@@ -689,7 +725,7 @@ function Judge({gameId,characters,refresh}:{gameId:string;characters:Character[]
 
       {commandPreview.action.kind==='health'&&<div className="command-action-card health-command-card">
         <div className="reward-label">HEALTH OVERRIDE</div>
-        <strong>{commandPreview.action.full_heal?'Restore to full health':`${commandPreview.action.health_delta>=0?'+':''}${commandPreview.action.health_delta} health`}</strong>
+        <strong>{commandPreview.action.full_heal?'Restore to full health':heartDeltaLabel(commandPreview.action.health_delta)}</strong>
       </div>}
 
       <div className="command-warning">This bypasses Dungeon judgment and will apply exactly as shown.</div>
@@ -923,10 +959,19 @@ function GM({gameId,characters,refresh}:{gameId:string;characters:Character[];re
           <div><div className="eyebrow">GM Controls</div><h3>Core Stats</h3></div>
           <span className="pill">{current.unspentStatPoints} unspent</span>
         </div>
-        <div className="quick-actions">
-          <button className="button primary" onClick={()=>void rpc('gm_level_up',{p_character_id:current.id,p_levels:1,p_points_per_level:1})}>Level Up +1</button>
-          <button className="button" onClick={()=>void supabase?.from('characters').update({current_health:Math.max(0,current.currentHealth-1)}).eq('id',current.id).then(()=>refresh())}>−1 Health</button>
-          <button className="button" onClick={()=>void supabase?.from('characters').update({current_health:Math.min(current.maxHealth,current.currentHealth+1)}).eq('id',current.id).then(()=>refresh())}>+1 Health</button>
+        <div className="gm-health-control-block">
+          <div className="quick-actions">
+            <button className="button primary" onClick={()=>void rpc('gm_level_up',{p_character_id:current.id,p_levels:1,p_points_per_level:1})}>Level Up +1</button>
+          </div>
+          <div className="gm-health-controls">
+            <div className="gm-health-label"><span>Health Adjustment</span><Hearts c={current.currentHealth} m={current.maxHealth}/></div>
+            <div className="gm-health-buttons">
+              <button className="button" onClick={()=>void rpc('gm_adjust_health',{p_character_id:current.id,p_quarters:-4})}>−1 ♥</button>
+              <button className="button" onClick={()=>void rpc('gm_adjust_health',{p_character_id:current.id,p_quarters:-1})}>−¼ ♥</button>
+              <button className="button" onClick={()=>void rpc('gm_adjust_health',{p_character_id:current.id,p_quarters:1})}>+¼ ♥</button>
+              <button className="button" onClick={()=>void rpc('gm_adjust_health',{p_character_id:current.id,p_quarters:4})}>+1 ♥</button>
+            </div>
+          </div>
         </div>
         <div className="gm-stats-grid">{stats.map(s=><div className="gm-stat-card" key={s}>
           <span>{s}</span>
