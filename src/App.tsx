@@ -755,8 +755,6 @@ function StoryLog({gameId,characters}:{gameId:string;characters:Character[]}) {
   const [events,setEvents]=useState<DungeonStoryEvent[]>([])
   const [loading,setLoading]=useState(true)
   const [error,setError]=useState('')
-  const [liveStatus,setLiveStatus]=useState<'connecting'|'live'|'reconnecting'>('connecting')
-  const [liveStatus,setLiveStatus]=useState<'connecting'|'live'|'reconnecting'>('connecting')
 
   async function reload(){
     setError('')
@@ -1262,6 +1260,7 @@ export default function App(){
   const [characters,setCharacters]=useState<Character[]>([])
   const [loading,setLoading]=useState(true)
   const [error,setError]=useState('')
+  const [liveStatus,setLiveStatus]=useState<'connecting'|'live'|'reconnecting'>('connecting')
 
   async function reloadGames(uid=userId){if(!uid)return[];const g=await listMyGames(uid);setGames(g);return g}
   async function refresh(g=game){if(!g)return;setCharacters(await loadCharacters(g.id))}
