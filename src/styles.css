@@ -1035,3 +1035,12 @@ input::placeholder,textarea::placeholder{color:#6f716f}
 .party-class{color:#d9c7aa;font-weight:750;line-height:1.3}
 @media(max-width:850px){.party-directory-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:520px){.party-directory-grid{grid-template-columns:1fr}.party-member-card{display:grid;grid-template-columns:105px minmax(0,1fr)}.party-member-portrait{aspect-ratio:auto;height:130px;border-bottom:0;border-right:1px solid #34383b}.party-member-info{align-self:center}}
+
+
+/* v1.2.1 — keep crawler photos anchored to the top */
+.player-portrait-image,
+.gm-profile-image,
+.gm-roster-image,
+.party-member-portrait img{
+  object-position:center top;
+}
