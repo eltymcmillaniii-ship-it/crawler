@@ -10,7 +10,7 @@ export type Item = {
   slot?: GearSlot
   effect: string
   coreValue: number
-  constitutionBonus?: number
+  statBonuses: Record<'Strength'|'Dexterity'|'Intelligence'|'Constitution'|'Charisma', number>
   quirk?: string
   quantity?: number
   tradeable?: boolean
@@ -52,6 +52,9 @@ export type DungeonVerdict = {
     name: string
     effect: string
     quirk: string
+    item_type?: Item['type']
+    slot?: GearSlot | null
+    stat_bonuses?: Record<'Strength'|'Dexterity'|'Intelligence'|'Constitution'|'Charisma', number>
   }
   reasoning_for_gm: string
 }
