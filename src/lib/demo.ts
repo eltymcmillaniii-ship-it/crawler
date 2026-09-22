@@ -9,7 +9,7 @@ const item = (x: Omit<Item, 'id' | 'coreValue' | 'statBonuses'> & { coreValue?: 
 })
 
 const emptyGear = () => ({
-  Head: null, Body: null, Hands: null, Feet: null,
+  Head: null, Shirt: null, Pants: null, Hands: null, Feet: null,
   'Weapon 1': null, 'Weapon 2': null, 'Accessory 1': null, 'Accessory 2': null,
 })
 
@@ -22,7 +22,7 @@ export const demoCharacters: Character[] = [
     techniques: ['Dirty Fighting'], perks: ['Improvised Thinker'],
     gear: {
       ...emptyGear(),
-      Body: item({ name: 'Spider-Silk Vest', rarity: 'S', type: 'Armor', slot: 'Body', effect: 'Ignore the first ❤️ physical damage each combat.' }),
+      Shirt: item({ name: 'Spider-Silk Vest', rarity: 'S', type: 'Armor', slot: 'Shirt', effect: 'Ignore the first ❤️ physical damage each combat.' }),
       Feet: item({ name: 'Boots of Questionable Traction', rarity: 'B', type: 'Armor', slot: 'Feet', effect: 'Ignore knockdown once per combat.' }),
       'Weapon 1': item({ name: 'Goblin Cleaver', rarity: 'S', type: 'Weapon', slot: 'Weapon 1', effect: '❤️❤️ · Knockback on 10+.' }),
       'Weapon 2': item({ name: 'Rusty Dagger', rarity: 'B', type: 'Weapon', slot: 'Weapon 2', effect: '❤️ · Concealable.' }),
