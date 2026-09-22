@@ -148,6 +148,35 @@ function inferItemPlacement(command: string, item: any) {
   return { itemType, slot }
 }
 
+function fallbackDistinctItem(command:string, character:CharacterInput|undefined, index:number, base:any) {
+  const placement=inferItemPlacement(command,base)
+  const names:Record<string,string[]> = {
+    Head:['Helmet of Unearned Confidence','Thinking Cap of Academic Fraud','Crown of Dubious Authority','Hood of Strategic Cowardice','Mask of Socially Acceptable Menace'],
+    Shirt:['Vest of Refusing to Die','Shirt of Questionable Preparedness','Jacket of Aggressive Layering','Tunic of Administrative Immunity','Robe of Suspicious Competence'],
+    Pants:['Pants of Tactical Retreat','Leggings of Bad Momentum','Trousers of Dubious Fortitude','Greaves of Kneecap Optimism','Breeches of Emergency Dignity'],
+    Hands:['Gauntlets of Excessive Enthusiasm','Gloves of Petty Violence','Bracers of Overcommitment','Mitts of Unlicensed Heroism','Handwraps of Poor Restraint'],
+    Feet:['Boots of Premature Confidence','Shoes of Bad Decisions','Slippers of Unreasonable Velocity','Sandals of Tactical Regret','Boots of Absolutely Not Running Away'],
+    'Weapon 1':['Blade of Overreaction','Hammer of Conflict Resolution','Axe of Professional Disagreement','Spear of Personal Space','Mace of Escalation'],
+    'Accessory 1':['Amulet of Unwarranted Charisma','Ring of Statistically Bad Ideas','Charm of Dubious Providence','Pendant of Management Approval','Brooch of Questionable Importance'],
+  }
+  const pool=names[String(placement.slot)] ?? ['Dungeon Object of Suspicious Specificity','Management Artifact of Dubious Merit','Object the Dungeon Swears Is Useful','Unrequested Miracle with Fine Print','Certified Bad-Idea Equipment']
+  const topStat = character?.stats
+    ? Object.entries(character.stats).sort((a,b)=>Number(b[1])-Number(a[1]))[0]?.[0]
+    : undefined
+  const stat = ['Strength','Dexterity','Intelligence','Constitution','Charisma'].includes(String(topStat)) ? String(topStat) : ['Strength','Dexterity','Intelligence','Constitution','Charisma'][index%5]
+  const bonuses=zeroBonuses() as any
+  bonuses[stat]=1
+  return {
+    ...(base??{}),
+    name:pool[index%pool.length],
+    item_type:placement.itemType==='AI Generated'?'Accessory':placement.itemType,
+    slot:placement.slot ?? 'Accessory 1',
+    effect:`Grants +1 ${stat} while equipped. The Dungeon insists this is somehow character development.`,
+    quirk:`${character?.name || 'Crawler'} was apparently the intended victim of this design decision.`,
+    stat_bonuses:bonuses,
+  }
+}
+
 function normalizeCommand(parsed: any, command: string, chars: CharacterInput[]) {
   const validIds = new Set(chars.map(c=>c.id))
   const explicit = explicitRecipients(command,chars)
@@ -191,18 +220,17 @@ function normalizeCommand(parsed: any, command: string, chars: CharacterInput[])
 
   if (parsed.action.distribution==='individual') {
     const byRecipient = new Map(parsed.action.individual_items.map((entry:any)=>[entry.recipient_id,entry]))
-    parsed.action.individual_items = parsed.recipients.map((recipientId:string)=>{
-      const existing=byRecipient.get(recipientId) as any
-      if (existing) return existing
+    const seen=new Set<string>()
+    parsed.action.individual_items = parsed.recipients.map((recipientId:string,index:number)=>{
       const character=chars.find(c=>c.id===recipientId)
-      return {
-        recipient_id:recipientId,
-        item:normalizeItem({
-          ...(parsed.action.item ?? {}),
-          name: `${character?.name || 'Crawler'}'s ${parsed.action.item?.name || 'Dungeon Item'}`,
-          quirk: parsed.action.item?.quirk || 'The Dungeon claims this is technically unique. Legal disagrees.',
-        }),
+      const existing=byRecipient.get(recipientId) as any
+      let item=existing?.item ? normalizeItem(existing.item) : normalizeItem(fallbackDistinctItem(command,character,index,parsed.action.item))
+      const fingerprint=`${String(item?.name??'').toLowerCase()}|${String(item?.effect??'').toLowerCase()}|${String(item?.quirk??'').toLowerCase()}`
+      if (seen.has(fingerprint)) {
+        item=normalizeItem(fallbackDistinctItem(command,character,index,parsed.action.item))
       }
+      seen.add(`${String(item?.name??'').toLowerCase()}|${String(item?.effect??'').toLowerCase()}|${String(item?.quirk??'').toLowerCase()}`)
+      return {recipient_id:recipientId,item}
     })
   } else {
     parsed.action.distribution='shared'
