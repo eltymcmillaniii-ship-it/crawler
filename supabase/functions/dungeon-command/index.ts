@@ -232,6 +232,8 @@ function normalizeCommand(parsed: any, command: string, chars: CharacterInput[])
       seen.add(`${String(item?.name??'').toLowerCase()}|${String(item?.effect??'').toLowerCase()}|${String(item?.quirk??'').toLowerCase()}`)
       return {recipient_id:recipientId,item}
     })
+    // Keep the legacy single-item preview useful until every frontend has the individualized preview UI.
+    if (parsed.action.individual_items[0]?.item) parsed.action.item=parsed.action.individual_items[0].item
   } else {
     parsed.action.distribution='shared'
     parsed.action.individual_items=[]
@@ -361,7 +363,7 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error:'GM authorization required' }), { status:403, headers:{...corsHeaders,'Content-Type':'application/json'} })
     }
 
-    const characters: CharacterInput[] = Array.isArray(body?.characters)
+    const suppliedCharacters: CharacterInput[] = Array.isArray(body?.characters)
       ? body.characters.map((c:any)=>({
           id:String(c?.id??''),
           name:String(c?.name??''),
@@ -371,6 +373,54 @@ Deno.serve(async (req) => {
           gear:Array.isArray(c?.gear) ? c.gear : [],
         })).filter((c:CharacterInput)=>c.id)
       : []
+
+    let characters=suppliedCharacters
+    const ids=suppliedCharacters.map(c=>c.id)
+    if (ids.length) {
+      const [charRes,skillRes,itemRes]=await Promise.all([
+        sb.from('characters').select('id,name,level,stats').eq('game_id',gameId).in('id',ids),
+        sb.from('skills').select('character_id,name,rank').in('character_id',ids),
+        sb.from('character_items').select('character_id,equipped_slot,item:items(name,item_type,slot,effect,strength_bonus,dexterity_bonus,intelligence_bonus,constitution_bonus,charisma_bonus)').in('character_id',ids),
+      ])
+      if (!charRes.error && !skillRes.error && !itemRes.error) {
+        characters=(charRes.data??[]).map((row:any)=>{
+          const gear=(itemRes.data??[])
+            .filter((ci:any)=>ci.character_id===row.id && ci.equipped_slot)
+            .flatMap((ci:any)=>{
+              const raw=Array.isArray(ci.item)?ci.item[0]:ci.item
+              if(!raw)return[]
+              return [{
+                name:String(raw.name??''),
+                item_type:String(raw.item_type??''),
+                slot:String(ci.equipped_slot??raw.slot??''),
+                effect:String(raw.effect??''),
+                stat_bonuses:{
+                  Strength:Number(raw.strength_bonus??0),
+                  Dexterity:Number(raw.dexterity_bonus??0),
+                  Intelligence:Number(raw.intelligence_bonus??0),
+                  Constitution:Number(raw.constitution_bonus??0),
+                  Charisma:Number(raw.charisma_bonus??0),
+                },
+              }]
+            })
+          const base=(row.stats??{}) as Record<string,number>
+          const effective={...base}
+          for(const item of gear){
+            for(const stat of ['Strength','Dexterity','Intelligence','Constitution','Charisma']){
+              effective[stat]=Number(effective[stat]??0)+Number(item.stat_bonuses?.[stat]??0)
+            }
+          }
+          return {
+            id:String(row.id),
+            name:String(row.name??suppliedCharacters.find(c=>c.id===String(row.id))?.name??''),
+            level:Number(row.level??1),
+            stats:effective,
+            skills:(skillRes.data??[]).filter((s:any)=>s.character_id===row.id).map((s:any)=>({name:String(s.name),rank:Number(s.rank??1)})),
+            gear,
+          }
+        })
+      }
+    }
 
     const { data:gameContext } = await sb
       .from('games')
