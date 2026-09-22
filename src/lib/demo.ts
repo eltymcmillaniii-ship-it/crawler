@@ -11,7 +11,7 @@ const emptyGear = () => ({
 export const demoCharacters: Character[] = [
   {
     id: 'elty', userId: 'u-elty', name: 'Elty', background: 'Former Normal Human', level: 2, unspentStatPoints: 0,
-    currentHealth: 6, maxHealth: 7, portraitUrl: null, setupComplete: true,
+    currentHealth: 6, maxHealth: 7, portraitUrl: null, recoveryCode: 'DEMO-ELTY', setupComplete: true,
     stats: { Strength: 2, Dexterity: 1, Intelligence: 1, Constitution: 0, Charisma: 0 }, conditions: ['Poisoned'],
     skills: [{ name: 'Blades', rank: 1 }, { name: 'Scavenging', rank: 1 }, { name: 'Bullshitting', rank: 1 }],
     techniques: ['Dirty Fighting'], perks: ['Improvised Thinker'],
@@ -33,7 +33,7 @@ export const demoCharacters: Character[] = [
   },
   {
     id: 'sarah', userId: 'u-sarah', name: 'Sarah', background: 'Former Nurse', level: 2, unspentStatPoints: 0,
-    currentHealth: 4, maxHealth: 7, portraitUrl: null, setupComplete: true,
+    currentHealth: 4, maxHealth: 7, portraitUrl: null, recoveryCode: 'DEMO-SARA', setupComplete: true,
     stats: { Strength: 0, Dexterity: 1, Intelligence: 1, Constitution: 2, Charisma: 0 }, conditions: ['Bleeding'],
     skills: [{ name: 'First Aid', rank: 1 }, { name: 'Improvised Weapons', rank: 1 }], techniques: ['Field Medic'], perks: [],
     gear: { ...emptyGear(), 'Weapon 1': item({ name: 'Iron Spear', rarity: 'B', type: 'Weapon', slot: 'Weapon 1', effect: '❤️❤️ damage.' }) },
@@ -42,7 +42,7 @@ export const demoCharacters: Character[] = [
   },
   {
     id: 'kevin', userId: 'u-kevin', name: 'Kevin', background: 'Former Mechanic', level: 2, unspentStatPoints: 0,
-    currentHealth: 2, maxHealth: 6, portraitUrl: null, setupComplete: true,
+    currentHealth: 2, maxHealth: 6, portraitUrl: null, recoveryCode: 'DEMO-KEVN', setupComplete: true,
     stats: { Strength: 2, Dexterity: 0, Intelligence: 1, Constitution: 1, Charisma: 0 }, conditions: [],
     skills: [{ name: 'Mechanical Repair', rank: 1 }, { name: 'Blunt Weapons', rank: 1 }], techniques: ['Shoulder Check'], perks: ['Pack Mule'],
     gear: { ...emptyGear(), 'Weapon 1': item({ name: 'Trollbone Hammer', rarity: 'G', type: 'Weapon', slot: 'Weapon 1', effect: '❤️❤️❤️ · Push on 10+.' }) },
