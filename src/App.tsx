@@ -497,7 +497,7 @@ function Player({gameId,character,refresh}:{gameId:string;character:Character;re
         const slots=compatibleEquipSlots(i.slot)
         return <div className={`item-card rarity-${i.rarity}`} key={i.id}>
           <strong>{i.name}</strong>
-          <div className="muted small">{i.rarity==='B'?'Bronze':i.rarity==='S'?'Silver':'Gold'} · {i.type} · Core {i.coreValue}{i.constitutionBonus>0?` · CON +${i.constitutionBonus} when equipped`:''}{(i.quantity??1)>1?` ×${i.quantity}`:''}</div>
+          <div className="muted small">{i.rarity==='B'?'Bronze':i.rarity==='S'?'Silver':'Gold'} · {i.type} · Core {i.coreValue}{(i.constitutionBonus??0)>0?` · CON +${i.constitutionBonus??0} when equipped`:''}{(i.quantity??1)>1?` ×${i.quantity}`:''}</div>
           <div>{i.effect}</div>
           {i.quirk&&<div className="muted small">Quirk: {i.quirk}</div>}
           {i.type==='Consumable'
@@ -513,7 +513,7 @@ function Player({gameId,character,refresh}:{gameId:string;character:Character;re
         return <div className={`item-card equipped-item-card ${i?`rarity-${i.rarity}`:''}`} key={slot}>
           <div className="gear-label">{slot}</div>
           <strong>{i?.name??'Empty'}</strong>
-          {i&&<><div className="muted small">{i.rarity==='B'?'Bronze':i.rarity==='S'?'Silver':'Gold'} · Core {i.coreValue}{i.constitutionBonus>0?` · CON +${i.constitutionBonus}`:''}</div><div className="muted small">{i.effect}</div><button className="button wide unequip-button" disabled={busy} onClick={()=>void unequip(i.id)}>Unequip</button></>}
+          {i&&<><div className="muted small">{i.rarity==='B'?'Bronze':i.rarity==='S'?'Silver':'Gold'} · Core {i.coreValue}{(i.constitutionBonus??0)>0?` · CON +${i.constitutionBonus??0}`:''}</div><div className="muted small">{i.effect}</div><button className="button wide unequip-button" disabled={busy} onClick={()=>void unequip(i.id)}>Unequip</button></>}
         </div>
       })}</div>
     </section>}
@@ -989,7 +989,7 @@ function GM({gameId,characters,refresh}:{gameId:string;characters:Character[];re
           <h3>Inventory</h3>
           {current.inventory.length?current.inventory.map(i=><div className={`tag-row gm-inventory-item rarity-${i.rarity}`} key={i.id}>
             <div className="gm-item-heading"><strong>{i.name}</strong><span className="pill">{i.rarity==='B'?'Bronze':i.rarity==='S'?'Silver':'Gold'} · Core {i.coreValue}</span></div>
-            <div className="muted small">{i.type}{i.constitutionBonus>0?` · CON +${i.constitutionBonus} when equipped`:''}{(i.quantity??1)>1?` ×${i.quantity}`:''}</div>
+            <div className="muted small">{i.type}{(i.constitutionBonus??0)>0?` · CON +${i.constitutionBonus??0} when equipped`:''}{(i.quantity??1)>1?` ×${i.quantity}`:''}</div>
             {i.effect&&<div className="small gm-item-copy">{i.effect}</div>}
             {i.quirk&&<div className="muted small">Quirk: {i.quirk}</div>}
             <div className="gm-item-actions">
@@ -999,7 +999,7 @@ function GM({gameId,characters,refresh}:{gameId:string;characters:Character[];re
               <button className="button stat-step" onClick={()=>void rpc('gm_adjust_item_core_value',{p_character_item_id:i.id,p_delta:1})}>+</button>
               <span className="muted small gm-con-label">CON bonus</span>
               <button className="button stat-step" onClick={()=>void rpc('gm_adjust_item_constitution_bonus',{p_character_item_id:i.id,p_delta:-1})}>−</button>
-              <strong>+{i.constitutionBonus}</strong>
+              <strong>+{i.constitutionBonus??0}</strong>
               <button className="button stat-step" onClick={()=>void rpc('gm_adjust_item_constitution_bonus',{p_character_item_id:i.id,p_delta:1})}>+</button>
               <button className="button" onClick={()=>void renameItem(i.id,i.name)}>Rename</button>
               <button className="button" onClick={()=>void rpc('gm_remove_character_item',{p_character_item_id:i.id})}>Remove</button>
@@ -1011,12 +1011,12 @@ function GM({gameId,characters,refresh}:{gameId:string;characters:Character[];re
             return <div className={`tag-row gm-inventory-item ${i?`rarity-${i.rarity}`:''}`} key={slot}>
               <div className="gm-item-heading"><strong>{i?.name??'Empty'}</strong><span className="pill">{slot}</span></div>
               {i&&<>
-                <div className="muted small">{i.type} · {i.rarity==='B'?'Bronze':i.rarity==='S'?'Silver':'Gold'} · Core {i.coreValue}{i.constitutionBonus>0?` · CON +${i.constitutionBonus}`:''}</div>
+                <div className="muted small">{i.type} · {i.rarity==='B'?'Bronze':i.rarity==='S'?'Silver':'Gold'} · Core {i.coreValue}{(i.constitutionBonus??0)>0?` · CON +${i.constitutionBonus??0}`:''}</div>
                 {i.effect&&<div className="small gm-item-copy">{i.effect}</div>}
                 <div className="gm-item-actions">
                   <span className="muted small gm-con-label">CON bonus</span>
                   <button className="button stat-step" onClick={()=>void rpc('gm_adjust_item_constitution_bonus',{p_character_item_id:i.id,p_delta:-1})}>−</button>
-                  <strong>+{i.constitutionBonus}</strong>
+                  <strong>+{i.constitutionBonus??0}</strong>
                   <button className="button stat-step" onClick={()=>void rpc('gm_adjust_item_constitution_bonus',{p_character_item_id:i.id,p_delta:1})}>+</button>
                   <button className="button" onClick={()=>void renameItem(i.id,i.name)}>Rename</button>
                   <button className="button" onClick={()=>void rpc('gm_remove_character_item',{p_character_item_id:i.id})}>Remove</button>
