@@ -17,6 +17,7 @@ const schema = {
       additionalProperties: false,
       properties: {
         kind: { type: 'string', enum: ['loot_box','item','health'] },
+        distribution: { type: 'string', enum: ['shared','individual'] },
         rarity: { type: 'string', enum: ['B','S','G'] },
         box_name: { type: 'string' },
         opening_message: { type: 'string' },
@@ -49,16 +50,63 @@ const schema = {
           },
           required: ['name','item_type','slot','effect','quirk','stat_bonuses'],
         },
+        individual_items: {
+          type: 'array',
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              recipient_id: { type: 'string' },
+              item: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            name: { type: 'string' },
+            item_type: { type: 'string', enum: ['Weapon','Armor','Accessory','Consumable','Utility','Quest','AI Generated'] },
+            slot: {
+              anyOf: [
+                { type: 'null' },
+                { type: 'string', enum: ['Head','Shirt','Pants','Hands','Feet','Weapon 1','Weapon 2','Accessory 1','Accessory 2'] },
+              ],
+            },
+            effect: { type: 'string' },
+            quirk: { type: 'string' },
+            stat_bonuses: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                Strength: { type: 'integer', minimum: 0, maximum: 999 },
+                Dexterity: { type: 'integer', minimum: 0, maximum: 999 },
+                Intelligence: { type: 'integer', minimum: 0, maximum: 999 },
+                Constitution: { type: 'integer', minimum: 0, maximum: 999 },
+                Charisma: { type: 'integer', minimum: 0, maximum: 999 },
+              },
+              required: ['Strength','Dexterity','Intelligence','Constitution','Charisma'],
+            },
+          },
+          required: ['name','item_type','slot','effect','quirk','stat_bonuses'],
+        },
+            },
+            required: ['recipient_id','item'],
+          },
+        },
         health_delta: { type: 'integer' },
         full_heal: { type: 'boolean' },
       },
-      required: ['kind','rarity','box_name','opening_message','item','health_delta','full_heal'],
+      required: ['kind','distribution','rarity','box_name','opening_message','item','individual_items','health_delta','full_heal'],
     },
   },
   required: ['summary','recipients','action'],
 }
 
-type CharacterInput = { id: string; name: string }
+type CharacterInput = {
+  id: string
+  name: string
+  level?: number
+  stats?: Record<string,number>
+  skills?: Array<{name:string;rank:number}>
+  gear?: Array<{name?:string;item_type?:string;slot?:string;effect?:string;stat_bonuses?:Record<string,number>}>
+}
 
 const zeroBonuses = () => ({ Strength:0, Dexterity:0, Intelligence:0, Constitution:0, Charisma:0 })
 
@@ -108,8 +156,8 @@ function normalizeCommand(parsed: any, command: string, chars: CharacterInput[])
     : []
   parsed.recipients = explicit.length ? explicit : aiRecipients
 
-  const item = parsed?.action?.item
-  if (item) {
+  const normalizeItem = (item:any) => {
+    if (!item) return item
     item.stat_bonuses = { ...zeroBonuses(), ...(item.stat_bonuses ?? {}) }
     const placement = inferItemPlacement(command,item)
     item.item_type = placement.itemType
@@ -117,9 +165,6 @@ function normalizeCommand(parsed: any, command: string, chars: CharacterInput[])
 
     const hasStructuredBonus = Object.values(item.stat_bonuses).some((v:any)=>Number(v)>0)
     if (hasStructuredBonus && !item.slot) {
-      // Permanent core-stat bonuses only function on equipped gear.
-      // If the GM did not explicitly request a consumable/non-equippable object,
-      // turn the creative item into a wearable accessory rather than silently losing the bonus.
       const explicitNonEquip = /\b(potion|elixir|tonic|scroll|consumable|utility|quest item)\b/i.test(command)
       if (!explicitNonEquip) {
         item.item_type='Accessory'
@@ -128,6 +173,40 @@ function normalizeCommand(parsed: any, command: string, chars: CharacterInput[])
         item.stat_bonuses = zeroBonuses()
       }
     }
+    return item
+  }
+
+  if (!parsed.action) return parsed
+  parsed.action.item = normalizeItem(parsed.action.item)
+  parsed.action.individual_items = Array.isArray(parsed.action.individual_items)
+    ? parsed.action.individual_items
+        .filter((entry:any)=>validIds.has(String(entry?.recipient_id)))
+        .map((entry:any)=>({recipient_id:String(entry.recipient_id),item:normalizeItem(entry.item)}))
+    : []
+
+  const wantsDifferent = /\b(different|unique|individual|individualized|personalized|personalised|bespoke|one each|each person|each crawler|each player|tailored)\b/i.test(command)
+  if (wantsDifferent && ['item','loot_box'].includes(parsed.action.kind) && parsed.recipients.length>1) {
+    parsed.action.distribution='individual'
+  }
+
+  if (parsed.action.distribution==='individual') {
+    const byRecipient = new Map(parsed.action.individual_items.map((entry:any)=>[entry.recipient_id,entry]))
+    parsed.action.individual_items = parsed.recipients.map((recipientId:string)=>{
+      const existing=byRecipient.get(recipientId) as any
+      if (existing) return existing
+      const character=chars.find(c=>c.id===recipientId)
+      return {
+        recipient_id:recipientId,
+        item:normalizeItem({
+          ...(parsed.action.item ?? {}),
+          name: `${character?.name || 'Crawler'}'s ${parsed.action.item?.name || 'Dungeon Item'}`,
+          quirk: parsed.action.item?.quirk || 'The Dungeon claims this is technically unique. Legal disagrees.',
+        }),
+      }
+    })
+  } else {
+    parsed.action.distribution='shared'
+    parsed.action.individual_items=[]
   }
   return parsed
 }
@@ -157,6 +236,7 @@ function fallback(body: any) {
       recipients,
       action: {
         kind: 'loot_box',
+        distribution: 'shared',
         rarity,
         box_name: healing ? 'Box of Barely Adequate Medical Supervision' : 'Box of Management-Mandated Generosity',
         opening_message: healing ? 'Oh good. Medical intervention. Because apparently natural selection needs supervision.' : 'Management has intervened. Please enjoy this suspiciously specific act of generosity.',
@@ -168,6 +248,7 @@ function fallback(body: any) {
           quirk: healing ? 'Tastes aggressively medicinal.' : 'Marked PROPERTY OF THE DUNGEON.',
           stat_bonuses: zeroBonuses(),
         },
+        individual_items: [],
         health_delta: 0,
         full_heal: false,
       },
@@ -180,10 +261,12 @@ function fallback(body: any) {
       recipients,
       action: {
         kind: 'health',
+        distribution: 'shared',
         rarity: 'B',
         box_name: '',
         opening_message: '',
         item: { name:'', item_type:'AI Generated', slot:null, effect:'', quirk:'', stat_bonuses: zeroBonuses(), },
+        individual_items: [],
         health_delta: /full/.test(lower) ? 0 : inferHealthUnits(lower),
         full_heal: /full/.test(lower),
       },
@@ -195,6 +278,7 @@ function fallback(body: any) {
     recipients,
     action: {
       kind: 'item',
+      distribution: 'shared',
       rarity,
       box_name: '',
       opening_message: '',
@@ -250,7 +334,14 @@ Deno.serve(async (req) => {
     }
 
     const characters: CharacterInput[] = Array.isArray(body?.characters)
-      ? body.characters.map((c:any)=>({id:String(c?.id??''),name:String(c?.name??'')})).filter((c:CharacterInput)=>c.id)
+      ? body.characters.map((c:any)=>({
+          id:String(c?.id??''),
+          name:String(c?.name??''),
+          level:Number(c?.level??1),
+          stats:c?.stats && typeof c.stats==='object' ? c.stats : undefined,
+          skills:Array.isArray(c?.skills) ? c.skills : [],
+          gear:Array.isArray(c?.gear) ? c.gear : [],
+        })).filter((c:CharacterInput)=>c.id)
       : []
 
     const { data:gameContext } = await sb
@@ -283,12 +374,23 @@ Deno.serve(async (req) => {
 Interpret the GM's INTENT, not their wording. The command is a creative brief, not dictation. Preserve hard constraints exactly when the GM gives them: recipients, explicit rarity, explicit item category, explicit stat bonus amounts, explicit health amount, and any clearly required item or effect. For everything the GM leaves open, invent a polished Dungeon-style result: funny item name, concise useful effect, ridiculous quirk, sarcastic summary, and opening_message. Do not simply copy the command into the item name or effect.
 
 Examples of intent:
-- "Give everyone something to help with the cold" -> invent one fitting Dungeon item/effect with humor; do not name it "Something to Help With the Cold."
+- "Give everyone something to help with the cold" -> invent one fitting shared Dungeon item/effect with humor; do not name it "Something to Help With the Cold."
+- "Give everyone a different item" -> generate one genuinely distinct item per crawler, tailored using their stats/skills/gear where useful.
+- "Give everyone a different hat" -> every crawler gets a different Head-slot armor item; do NOT give everyone the same "bespoke hat."
 - "Give Mike a sword that boosts strength" -> create a flavorful Weapon in Weapon 1 with a sensible Strength bonus and a Dungeon-style name/quirk.
 - "Give everyone a bronze box with a healing item" -> create a Bronze loot box with a guaranteed healing consumable; make the box/item names and commentary entertaining.
 - "Heal Sarah 1 HP" -> perform the health change exactly, but the summary/opening commentary can still be sarcastic.
 
 Supported actions: loot_box, item, health. Return exactly one action. Recipient IDs MUST come from the supplied character list. "Everyone", "all", or "party" means every supplied character ID. If a crawler is named, target that crawler. Never invent recipient IDs.
+
+DISTRIBUTION RULES:
+- If the GM says "different", "unique", "one each", "bespoke", "personalized", "individual", "tailored", or anything that clearly means each recipient should get their own item, set action.distribution="individual".
+- For individual distribution, action.individual_items MUST contain exactly one entry for every recipient, using that recipient's exact ID.
+- Each item must be genuinely different in concept, name, effect, quirk, and/or stat emphasis—not the same generic item renamed per crawler.
+- Use each crawler's level, stats, skills, and equipped gear as inspiration when available. Tailor the item to their build or personality implied by their current mechanics.
+- Do not produce lazy names like "Bespoke Hat", "Custom Sword", or "Personalized Item" unless the GM explicitly asks for that exact wording.
+- If the GM asks for different loot boxes, each recipient gets a box whose guaranteed preset item is their own distinct item.
+- If the GM wants the same item for everyone, set distribution="shared" and leave individual_items empty.
 
 ITEM ASSIGNMENT RULES:
 - Sword/axe/dagger/hammer/bow/staff/spear/mace/other held weapon -> item_type Weapon, slot Weapon 1.
