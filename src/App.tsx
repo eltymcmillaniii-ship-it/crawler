@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Brain, Gift, Package, ScrollText, Sparkles, Trophy, Users } from 'lucide-react'
-import type { Character, DungeonVerdict, GearSlot, LootOpenResult } from './lib/types'
+import { ArrowLeftRight, Brain, Gift, Package, ScrollText, Sparkles, Trophy, Users } from 'lucide-react'
+import type { Character, DungeonVerdict, GearSlot, LootOpenResult, TradeRecord, TradeTarget, TradeableItem } from './lib/types'
 import { supabase, supabaseConfigured } from './lib/supabase'
 import {
-  applyDungeonVerdict, completeCharacterSetup, createGame, createGmLogin, deleteGame, ensureAnonymousUser, joinGame,
-  equipCharacterItem, gmRenameItem, listMyGames, loadCharacters, loadDungeonStory, loadPartyMembers, openLootBox, persistCharacterDiff, recoverCrawler, renameCharacter, signInGm, signOutUser, subscribeToGame, unequipCharacterItem, uploadCharacterPortrait,
+  acceptTrade, applyDungeonVerdict, cancelTrade, completeCharacterSetup, createGame, createGmLogin, createTrade, declineTrade, deleteGame, ensureAnonymousUser, joinGame,
+  equipCharacterItem, gmRenameItem, listMyGames, listMyTrades, listTradeableItems, listTradeTargets, loadCharacters, loadDungeonStory, loadPartyMembers, openLootBox, persistCharacterDiff, recoverCrawler, renameCharacter, signInGm, signOutUser, subscribeToGame, unequipCharacterItem, uploadCharacterPortrait,
 } from './lib/live'
 import type { DungeonStoryEvent, GameSummary, PartyMember } from './lib/live'
 
@@ -167,13 +167,21 @@ function Setup({character,onDone}:{character:Character;onDone:()=>Promise<void>}
 }
 
 function Player({gameId,character,refresh}:{gameId:string;character:Character;refresh:()=>Promise<void>}) {
-  const [tab,setTab]=useState<'crawler'|'party'|'inventory'|'loot'|'achievements'>('crawler')
+  const [tab,setTab]=useState<'crawler'|'party'|'trades'|'inventory'|'loot'|'achievements'>('crawler')
   const [msg,setMsg]=useState('')
   const [busy,setBusy]=useState(false)
   const [uploadingPortrait,setUploadingPortrait]=useState(false)
   const [lootReveal,setLootReveal]=useState<LootOpenResult|null>(null)
   const [party,setParty]=useState<PartyMember[]>([])
   const [partyLoading,setPartyLoading]=useState(false)
+  const [tradeTargets,setTradeTargets]=useState<TradeTarget[]>([])
+  const [tradeItems,setTradeItems]=useState<TradeableItem[]>([])
+  const [requestedItems,setRequestedItems]=useState<TradeableItem[]>([])
+  const [trades,setTrades]=useState<TradeRecord[]>([])
+  const [tradeTargetId,setTradeTargetId]=useState('')
+  const [offeredItemId,setOfferedItemId]=useState('')
+  const [requestedItemId,setRequestedItemId]=useState('')
+  const [tradeLoading,setTradeLoading]=useState(false)
 
   async function openParty(){
     setTab('party')
@@ -189,6 +197,86 @@ function Player({gameId,character,refresh}:{gameId:string;character:Character;re
   }
 
   useEffect(()=>{void loadPartyMembers(gameId).then(setParty).catch(()=>{})},[gameId])
+
+  async function loadTrades(){
+    setTradeLoading(true)
+    try{
+      const [targets,items,records]=await Promise.all([
+        listTradeTargets(gameId),
+        listTradeableItems(gameId,character.id),
+        listMyTrades(gameId),
+      ])
+      setTradeTargets(targets)
+      setTradeItems(items)
+      setTrades(records)
+      if(tradeTargetId&&!targets.some(t=>t.characterId===tradeTargetId)){
+        setTradeTargetId('')
+        setRequestedItemId('')
+        setRequestedItems([])
+      }else if(tradeTargetId){
+        setRequestedItems(await listTradeableItems(gameId,tradeTargetId))
+      }
+      if(offeredItemId&&!items.some(i=>i.characterItemId===offeredItemId))setOfferedItemId('')
+    }catch(e){
+      setMsg(e instanceof Error?e.message:'Could not load trades')
+    }finally{
+      setTradeLoading(false)
+    }
+  }
+
+  async function openTrades(){
+    setTab('trades')
+    setMsg('')
+    await loadTrades()
+  }
+
+  async function chooseTradeTarget(characterId:string){
+    setTradeTargetId(characterId)
+    setRequestedItemId('')
+    setRequestedItems([])
+    if(!characterId)return
+    setTradeLoading(true)
+    try{
+      setRequestedItems(await listTradeableItems(gameId,characterId))
+    }catch(e){
+      setMsg(e instanceof Error?e.message:'Could not load that crawler’s tradeable items')
+    }finally{
+      setTradeLoading(false)
+    }
+  }
+
+  async function sendTrade(){
+    if(!tradeTargetId||!offeredItemId)return
+    setBusy(true);setMsg('')
+    try{
+      await createTrade({
+        gameId,
+        senderCharacterId:character.id,
+        recipientCharacterId:tradeTargetId,
+        offeredCharacterItemId:offeredItemId,
+        requestedCharacterItemId:requestedItemId||null,
+      })
+      setOfferedItemId('')
+      setRequestedItemId('')
+      setMsg('Trade offer sent.')
+      await loadTrades()
+    }catch(e){setMsg(e instanceof Error?e.message:'Could not send trade')}finally{setBusy(false)}
+  }
+
+  async function respondToTrade(action:'accept'|'decline'|'cancel',tradeId:string){
+    setBusy(true);setMsg('')
+    try{
+      if(action==='accept')await acceptTrade(tradeId)
+      else if(action==='decline')await declineTrade(tradeId)
+      else await cancelTrade(tradeId)
+      await refresh()
+      await loadTrades()
+      setMsg(action==='accept'?'Trade accepted. Inventory updated.':action==='decline'?'Trade declined.':'Trade cancelled.')
+    }catch(e){setMsg(e instanceof Error?e.message:'Could not update trade')}finally{setBusy(false)}
+  }
+
+  useEffect(()=>{void loadPartyMembers(gameId).then(setParty).catch(()=>{})},[gameId])
+  useEffect(()=>{if(tab==='trades')void loadTrades()},[character.inventory,character.gear])
 
   async function uploadPortrait(file:File){
     if(!file)return
@@ -258,7 +346,7 @@ function Player({gameId,character,refresh}:{gameId:string;character:Character;re
   return <>
     <section className="panel pad player-header"><div><div className="player-name-row"><h2>{character.name} <span className="pill">Level {character.level}</span></h2><button className="button compact-action" disabled={busy} onClick={()=>void renameSelf()}>Rename</button></div><div className="muted">{character.background}</div></div><div><div className="eyebrow">Health</div><Hearts c={character.currentHealth} m={character.maxHealth}/></div></section>
     {character.unspentStatPoints>0&&<div className="live-banner level-up-broadcast"><div className="broadcast-kicker">SYSTEM OVERRIDE</div><strong>LEVEL UP!</strong><span>You have {character.unspentStatPoints} stat point{character.unspentStatPoints===1?'':'s'} to spend.</span></div>}
-    <nav className="tabs"><button className={`button ${tab==='crawler'?'primary':''}`} onClick={()=>setTab('crawler')}><Users size={16}/>Crawler</button><button className={`button ${tab==='party'?'primary':''}`} onClick={()=>void openParty()}><Users size={16}/>Party</button><button className={`button ${tab==='inventory'?'primary':''}`} onClick={()=>setTab('inventory')}><Package size={16}/>Inventory</button><button className={`button ${tab==='loot'?'primary':''}`} onClick={()=>setTab('loot')}><Gift size={16}/>Loot</button><button className={`button ${tab==='achievements'?'primary':''}`} onClick={()=>setTab('achievements')}><Trophy size={16}/>Achievements</button></nav>
+    <nav className="tabs"><button className={`button ${tab==='crawler'?'primary':''}`} onClick={()=>setTab('crawler')}><Users size={16}/>Crawler</button><button className={`button ${tab==='party'?'primary':''}`} onClick={()=>void openParty()}><Users size={16}/>Party</button><button className={`button ${tab==='trades'?'primary':''}`} onClick={()=>void openTrades()}><ArrowLeftRight size={16}/>Trades{trades.filter(t=>t.status==='pending'&&t.recipientCharacterId===character.id).length>0&&<span className="tab-badge">{trades.filter(t=>t.status==='pending'&&t.recipientCharacterId===character.id).length}</span>}</button><button className={`button ${tab==='inventory'?'primary':''}`} onClick={()=>setTab('inventory')}><Package size={16}/>Inventory</button><button className={`button ${tab==='loot'?'primary':''}`} onClick={()=>setTab('loot')}><Gift size={16}/>Loot</button><button className={`button ${tab==='achievements'?'primary':''}`} onClick={()=>setTab('achievements')}><Trophy size={16}/>Achievements</button></nav>
     {msg&&<div className="status-message">{msg}</div>}
     {tab==='crawler'&&<div className="crawler-layout">
       <section className="panel pad portrait-panel">
@@ -311,6 +399,69 @@ function Player({gameId,character,refresh}:{gameId:string;character:Character;re
           <div className="party-class">{member.className}</div>
         </div>
       </article>)}</div>:<div className="class-empty">No other crawlers detected.</div>}
+    </section>}
+    {tab==='trades'&&<section className="panel pad trades-panel">
+      <div className="broadcast-section-heading">
+        <div><div className="broadcast-kicker">CRAWLER COMMERCE SYSTEM</div><h3><ArrowLeftRight size={18}/>Trades</h3></div>
+        <span className="pill">{trades.filter(t=>t.status==='pending').length} pending</span>
+      </div>
+      <p className="muted small trade-help">Only unequipped, tradeable backpack items can be offered. Unequip gear first if you want to trade it.</p>
+
+      <div className="trade-layout">
+        <div className="trade-builder">
+          <div className="trade-section-label">Create Offer</div>
+          <label>Trade with
+            <select value={tradeTargetId} onChange={e=>void chooseTradeTarget(e.target.value)}>
+              <option value="">Choose a crawler…</option>
+              {tradeTargets.map(t=><option key={t.characterId} value={t.characterId}>{t.characterName}</option>)}
+            </select>
+          </label>
+          <label>You give
+            <select value={offeredItemId} onChange={e=>setOfferedItemId(e.target.value)}>
+              <option value="">Choose one of your items…</option>
+              {tradeItems.map(i=><option key={i.characterItemId} value={i.characterItemId}>{i.name}{i.quantity>1?` ×${i.quantity}`:''}</option>)}
+            </select>
+          </label>
+          <label>You want <span className="muted small">(optional)</span>
+            <select value={requestedItemId} disabled={!tradeTargetId||tradeLoading} onChange={e=>setRequestedItemId(e.target.value)}>
+              <option value="">{tradeTargetId?'Nothing — this is a gift':'Choose a crawler first…'}</option>
+              {requestedItems.map(i=><option key={i.characterItemId} value={i.characterItemId}>{i.name}{i.quantity>1?` ×${i.quantity}`:''}</option>)}
+            </select>
+          </label>
+          {tradeTargetId&&offeredItemId&&<div className="trade-preview">
+            <div><span>You send</span><strong>{tradeItems.find(i=>i.characterItemId===offeredItemId)?.name}</strong></div>
+            <div className="trade-arrow">⇄</div>
+            <div><span>You receive</span><strong>{requestedItemId?(requestedItems.find(i=>i.characterItemId===requestedItemId)?.name??'Selected item'):'Nothing'}</strong></div>
+          </div>}
+          <button className="button primary wide" disabled={busy||tradeLoading||!tradeTargetId||!offeredItemId} onClick={()=>void sendTrade()}>{busy?'Sending…':'Send Trade Offer'}</button>
+          {!tradeItems.length&&!tradeLoading&&<div className="muted small trade-empty-note">You have no unequipped tradeable items available.</div>}
+        </div>
+
+        <div className="trade-inbox">
+          <div className="trade-section-label">Incoming Offers</div>
+          {tradeLoading&&trades.length===0?<div className="class-empty">Checking the market…</div>:trades.filter(t=>t.status==='pending'&&t.recipientCharacterId===character.id).length?trades.filter(t=>t.status==='pending'&&t.recipientCharacterId===character.id).map(t=><article className="trade-offer-card incoming" key={t.id}>
+            <div className="trade-status-line"><span className="pill">Incoming</span><span className="muted small">{new Date(t.createdAt).toLocaleString()}</span></div>
+            <h3>{t.senderName} wants to trade</h3>
+            <div className="trade-exchange-row"><div><span className="muted small">You receive</span><strong>{t.offeredItemName}</strong></div><div className="trade-arrow">⇄</div><div><span className="muted small">You give</span><strong>{t.requestedItemName||'Nothing'}</strong></div></div>
+            <div className="trade-card-actions"><button className="button primary" disabled={busy} onClick={()=>void respondToTrade('accept',t.id)}>Accept</button><button className="button" disabled={busy} onClick={()=>void respondToTrade('decline',t.id)}>Decline</button></div>
+          </article>):<div className="class-empty">No incoming offers.</div>}
+        </div>
+      </div>
+
+      <div className="trade-history">
+        <div className="trade-section-label">Your Offers & History</div>
+        {trades.length?<div className="trade-history-list">{trades.map(t=>{
+          const outgoing=t.senderCharacterId===character.id
+          const pending=t.status==='pending'
+          return <article className={`trade-history-row trade-status-${t.status}`} key={t.id}>
+            <div className="trade-history-main">
+              <div><span className={`pill trade-pill-${t.status}`}>{t.status}</span><span className="muted small">{outgoing?'To':'From'} {outgoing?t.recipientName:t.senderName}</span></div>
+              <strong>{t.offeredItemName}{t.requestedItemName?` ⇄ ${t.requestedItemName}`:' → gift'}</strong>
+            </div>
+            {pending&&outgoing&&<button className="button compact-action" disabled={busy} onClick={()=>void respondToTrade('cancel',t.id)}>Cancel</button>}
+          </article>
+        })}</div>:<div className="class-empty">No trade history yet.</div>}
+      </div>
     </section>}
     {tab==='inventory'&&<section className="panel pad inventory-management-panel">
       <div className="section-title"><div><div className="eyebrow">Loadout</div><h3>Backpack</h3></div><span className="pill">{character.inventory.length} carried</span></div>
