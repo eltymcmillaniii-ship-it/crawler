@@ -1,14 +1,22 @@
 import { useEffect, useState } from 'react'
 import { Brain, Gift, Package, ScrollText, Sparkles, Trophy, Users } from 'lucide-react'
-import type { Character, DungeonVerdict, LootOpenResult } from './lib/types'
+import type { Character, DungeonVerdict, GearSlot, LootOpenResult } from './lib/types'
 import { supabase, supabaseConfigured } from './lib/supabase'
 import {
   applyDungeonVerdict, completeCharacterSetup, createGame, createGmLogin, deleteGame, ensureAnonymousUser, joinGame,
-  listMyGames, loadCharacters, loadDungeonStory, openLootBox, persistCharacterDiff, recoverCrawler, signInGm, signOutUser, subscribeToGame, uploadCharacterPortrait,
+  equipCharacterItem, gmRenameItem, listMyGames, loadCharacters, loadDungeonStory, openLootBox, persistCharacterDiff, recoverCrawler, renameCharacter, signInGm, signOutUser, subscribeToGame, unequipCharacterItem, uploadCharacterPortrait,
 } from './lib/live'
 import type { DungeonStoryEvent, GameSummary } from './lib/live'
 
 const stats = ['Strength','Dexterity','Intelligence','Constitution','Charisma'] as const
+const gearSlots: GearSlot[] = ['Head','Body','Hands','Feet','Weapon 1','Weapon 2','Accessory 1','Accessory 2']
+
+function compatibleEquipSlots(slot?: GearSlot): GearSlot[] {
+  if (!slot) return []
+  if (slot === 'Weapon 1' || slot === 'Weapon 2') return ['Weapon 1','Weapon 2']
+  if (slot === 'Accessory 1' || slot === 'Accessory 2') return ['Accessory 1','Accessory 2']
+  return [slot]
+}
 function Hearts({c,m}:{c:number;m:number}) {
   return <div className="hearts">{Array.from({length:m},(_,i)=><span key={i} className={i<c?'heart':'heart empty'}>♥</span>)}</div>
 }
@@ -202,8 +210,36 @@ function Player({character,refresh}:{character:Character;refresh:()=>Promise<voi
       await refresh()
     }catch(e){setMsg(e instanceof Error?e.message:'Box failed to open')}finally{setBusy(false)}
   }
+  async function renameSelf(){
+    const next=window.prompt('Rename your crawler',character.name)?.trim()
+    if(!next||next===character.name)return
+    setBusy(true);setMsg('')
+    try{
+      await renameCharacter(character.id,next)
+      await refresh()
+      setMsg(`Crawler renamed to ${next}.`)
+    }catch(e){setMsg(e instanceof Error?e.message:'Could not rename crawler')}finally{setBusy(false)}
+  }
+
+  async function equip(itemId:string,slot:GearSlot){
+    setBusy(true);setMsg('')
+    try{
+      await equipCharacterItem(itemId,slot)
+      await refresh()
+      setMsg(`Equipped to ${slot}.`)
+    }catch(e){setMsg(e instanceof Error?e.message:'Could not equip item')}finally{setBusy(false)}
+  }
+
+  async function unequip(itemId:string){
+    setBusy(true);setMsg('')
+    try{
+      await unequipCharacterItem(itemId)
+      await refresh()
+      setMsg('Item returned to your backpack.')
+    }catch(e){setMsg(e instanceof Error?e.message:'Could not unequip item')}finally{setBusy(false)}
+  }
   return <>
-    <section className="panel pad player-header"><div><h2>{character.name} <span className="pill">Level {character.level}</span></h2><div className="muted">{character.background}</div></div><div><div className="eyebrow">Health</div><Hearts c={character.currentHealth} m={character.maxHealth}/></div></section>
+    <section className="panel pad player-header"><div><div className="player-name-row"><h2>{character.name} <span className="pill">Level {character.level}</span></h2><button className="button compact-action" disabled={busy} onClick={()=>void renameSelf()}>Rename</button></div><div className="muted">{character.background}</div></div><div><div className="eyebrow">Health</div><Hearts c={character.currentHealth} m={character.maxHealth}/></div></section>
     {character.unspentStatPoints>0&&<div className="live-banner level-up-broadcast"><div className="broadcast-kicker">SYSTEM OVERRIDE</div><strong>LEVEL UP!</strong><span>You have {character.unspentStatPoints} stat point{character.unspentStatPoints===1?'':'s'} to spend.</span></div>}
     <nav className="tabs"><button className={`button ${tab==='crawler'?'primary':''}`} onClick={()=>setTab('crawler')}><Users size={16}/>Crawler</button><button className={`button ${tab==='inventory'?'primary':''}`} onClick={()=>setTab('inventory')}><Package size={16}/>Inventory</button><button className={`button ${tab==='loot'?'primary':''}`} onClick={()=>setTab('loot')}><Gift size={16}/>Loot</button><button className={`button ${tab==='achievements'?'primary':''}`} onClick={()=>setTab('achievements')}><Trophy size={16}/>Achievements</button></nav>
     {msg&&<div className="status-message">{msg}</div>}
@@ -230,7 +266,29 @@ function Player({character,refresh}:{character:Character;refresh:()=>Promise<voi
         <div className="two-col"><section className="panel pad"><h3><Brain size={18}/>Stats</h3><div className="stats-grid">{stats.map(s=><div className="stat" key={s}><span>{s}</span><strong>+{character.stats[s]}</strong>{character.unspentStatPoints>0&&<button className="button" disabled={busy} onClick={()=>void spend(s)}>+1</button>}</div>)}</div><h3>Conditions</h3><div className="chips">{character.conditions.length?character.conditions.map(x=><span className="pill" key={x}>{x}</span>):<span className="muted">None</span>}</div></section><section className="panel pad"><h3>Skills</h3>{character.skills.map(s=><div className="line-row" key={s.name}><span>{s.name}</span><strong>+{s.rank}</strong></div>)}<h3>Perks</h3>{character.perks.length?character.perks.map(x=><div className="tag-row" key={x}>{x}</div>):<div className="muted">None yet.</div>}</section></div>
       </div>
     </div>}
-    {tab==='inventory'&&<section className="panel pad"><h3>Backpack</h3><div className="card-grid">{character.inventory.length?character.inventory.map(i=><div className={`item-card rarity-${i.rarity}`} key={i.id}><strong>{i.name}</strong><div className="muted small">{i.rarity==='B'?'Bronze':i.rarity==='S'?'Silver':'Gold'} · {i.type} · Core {i.coreValue}{(i.quantity??1)>1?` ×${i.quantity}`:''}</div><div>{i.effect}</div>{i.quirk&&<div className="muted small">Quirk: {i.quirk}</div>}</div>):<div className="muted">Empty.</div>}</div><h3>Equipped Gear</h3><div className="card-grid">{Object.entries(character.gear).map(([slot,i])=><div className="item-card" key={slot}><div className="gear-label">{slot}</div><strong>{i?.name??'Empty'}</strong>{i&&<><div className="muted small">{i.rarity==='B'?'Bronze':i.rarity==='S'?'Silver':'Gold'} · Core {i.coreValue}</div><div className="muted small">{i.effect}</div></>}</div>)}</div></section>}
+    {tab==='inventory'&&<section className="panel pad inventory-management-panel">
+      <div className="section-title"><div><div className="eyebrow">Loadout</div><h3>Backpack</h3></div><span className="pill">{character.inventory.length} carried</span></div>
+      <div className="muted small inventory-help">Equip gear here. If a slot is already occupied, the old item automatically returns to your backpack.</div>
+      <div className="card-grid">{character.inventory.length?character.inventory.map(i=>{
+        const slots=compatibleEquipSlots(i.slot)
+        return <div className={`item-card rarity-${i.rarity}`} key={i.id}>
+          <strong>{i.name}</strong>
+          <div className="muted small">{i.rarity==='B'?'Bronze':i.rarity==='S'?'Silver':'Gold'} · {i.type} · Core {i.coreValue}{(i.quantity??1)>1?` ×${i.quantity}`:''}</div>
+          <div>{i.effect}</div>
+          {i.quirk&&<div className="muted small">Quirk: {i.quirk}</div>}
+          {slots.length?<div className="equip-actions">{slots.map(slot=><button className="button equip-button" disabled={busy} key={slot} onClick={()=>void equip(i.id,slot)}>Equip {slot}</button>)}</div>:<div className="muted small item-not-equippable">Not equippable.</div>}
+        </div>
+      }):<div className="muted">Empty.</div>}</div>
+      <h3>Equipped Gear</h3>
+      <div className="card-grid">{gearSlots.map(slot=>{
+        const i=character.gear[slot]
+        return <div className={`item-card equipped-item-card ${i?`rarity-${i.rarity}`:''}`} key={slot}>
+          <div className="gear-label">{slot}</div>
+          <strong>{i?.name??'Empty'}</strong>
+          {i&&<><div className="muted small">{i.rarity==='B'?'Bronze':i.rarity==='S'?'Silver':'Gold'} · Core {i.coreValue}</div><div className="muted small">{i.effect}</div><button className="button wide unequip-button" disabled={busy} onClick={()=>void unequip(i.id)}>Unequip</button></>}
+        </div>
+      })}</div>
+    </section>}
     {tab==='loot'&&<section className="panel pad loot-vault-panel">
       <div className="broadcast-section-heading"><div><div className="broadcast-kicker">DUNGEON REWARD VAULT</div><h3>Unopened Loot Boxes</h3></div><span className="broadcast-light">LIVE</span></div>
       {lootReveal&&<div className={`broadcast-reveal loot-broadcast rarity-broadcast-${lootReveal.rarity}`}>
@@ -458,6 +516,27 @@ function GM({gameId,characters,refresh}:{gameId:string;characters:Character[];re
     await refresh()
     setMsg(`${character.name} was removed from the game.`)
   }
+  async function renameCrawler(character:Character){
+    const next=window.prompt('Rename crawler',character.name)?.trim()
+    if(!next||next===character.name)return
+    setMsg('')
+    try{
+      await renameCharacter(character.id,next)
+      await refresh()
+      setMsg(`Crawler renamed to ${next}.`)
+    }catch(e){setMsg(e instanceof Error?e.message:'Could not rename crawler')}
+  }
+
+  async function renameItem(itemId:string,currentName:string){
+    const next=window.prompt('Rename item',currentName)?.trim()
+    if(!next||next===currentName)return
+    setMsg('')
+    try{
+      await gmRenameItem(itemId,next)
+      await refresh()
+      setMsg(`Item renamed to ${next}.`)
+    }catch(e){setMsg(e instanceof Error?e.message:'Could not rename item')}
+  }
   async function copyRecoveryCode(character:Character){
     try{
       await navigator.clipboard.writeText(character.recoveryCode)
@@ -498,7 +577,7 @@ function GM({gameId,characters,refresh}:{gameId:string;characters:Character[];re
             : <div className="gm-profile-empty"><Users size={44}/></div>}
         </div>
         <div className="gm-profile-main"><h2>{current.name}</h2><div className="muted">Level {current.level} · {current.background}</div><div className="gm-profile-health"><div className="eyebrow">Health</div><Hearts c={current.currentHealth} m={current.maxHealth}/></div></div>
-        <div className="gm-profile-actions"><button className="button danger-button" onClick={()=>void deletePlayer(current)}>Delete Player</button></div>
+        <div className="gm-profile-actions"><button className="button" onClick={()=>void renameCrawler(current)}>Rename Player</button><button className="button danger-button" onClick={()=>void deletePlayer(current)}>Delete Player</button></div>
       </section>
       <section className="panel pad crawler-recovery-panel">
         <div>
@@ -525,6 +604,7 @@ function GM({gameId,characters,refresh}:{gameId:string;characters:Character[];re
               <button className="button stat-step" onClick={()=>void rpc('gm_adjust_item_core_value',{p_character_item_id:i.id,p_delta:-1})}>−</button>
               <strong>{i.coreValue}</strong>
               <button className="button stat-step" onClick={()=>void rpc('gm_adjust_item_core_value',{p_character_item_id:i.id,p_delta:1})}>+</button>
+              <button className="button" onClick={()=>void renameItem(i.id,i.name)}>Rename</button>
               <button className="button" onClick={()=>void rpc('gm_remove_character_item',{p_character_item_id:i.id})}>Remove</button>
             </div>
           </div>):<div className="muted">Empty.</div>}
