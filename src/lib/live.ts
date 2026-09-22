@@ -114,6 +114,37 @@ export async function deleteGame(gameId: string) {
   if (error) throw error
 }
 
+export async function renameCharacter(characterId: string, name: string) {
+  const { error } = await client().rpc('rename_character', {
+    p_character_id: characterId,
+    p_name: name.trim(),
+  })
+  if (error) throw error
+}
+
+export async function gmRenameItem(characterItemId: string, name: string) {
+  const { error } = await client().rpc('gm_rename_item', {
+    p_character_item_id: characterItemId,
+    p_name: name.trim(),
+  })
+  if (error) throw error
+}
+
+export async function equipCharacterItem(characterItemId: string, slot: GearSlot) {
+  const { error } = await client().rpc('equip_character_item', {
+    p_character_item_id: characterItemId,
+    p_slot: slot,
+  })
+  if (error) throw error
+}
+
+export async function unequipCharacterItem(characterItemId: string) {
+  const { error } = await client().rpc('unequip_character_item', {
+    p_character_item_id: characterItemId,
+  })
+  if (error) throw error
+}
+
 export async function joinGame(joinCode: string, characterName = 'Unnamed Crawler'): Promise<string> {
   const sb = client()
   const { data, error } = await sb.rpc('join_game', {
