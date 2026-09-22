@@ -530,3 +530,466 @@ input::placeholder,textarea::placeholder{color:#6f716f}
   .panel{border-radius:4px}
   .button{min-height:46px}
 }
+
+
+/* v1.0 — Pass 2: theatrical Dungeon broadcasts */
+.broadcast-kicker{
+  color:var(--warning);
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:.68rem;
+  font-weight:900;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+}
+.broadcast-light{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  align-self:flex-start;
+  border:1px solid #7d2c27;
+  background:#2a0f0d;
+  color:#ff887b;
+  padding:5px 8px;
+  border-radius:3px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:.66rem;
+  font-weight:900;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  box-shadow:0 0 12px rgba(226,56,47,.13);
+}
+.broadcast-light:before{
+  content:"";
+  width:7px;
+  height:7px;
+  border-radius:50%;
+  background:#ff4438;
+  box-shadow:0 0 8px #ff4438;
+  animation:dungeonPulse 1.35s ease-in-out infinite;
+}
+.broadcast-section-heading{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:14px;
+  margin-bottom:14px;
+}
+
+.level-up-broadcast{
+  position:relative;
+  display:flex;
+  align-items:baseline;
+  gap:10px;
+  flex-wrap:wrap;
+  border-color:#88671e;
+  border-left-color:var(--gold);
+  background:
+    repeating-linear-gradient(135deg,rgba(239,183,53,.05) 0 9px,transparent 9px 18px),
+    #241a08;
+  color:#ffe8a7;
+  box-shadow:0 0 22px rgba(239,183,53,.07);
+}
+.level-up-broadcast strong{
+  font-family:Impact,"Arial Narrow",sans-serif;
+  font-size:1.25rem;
+  letter-spacing:.08em;
+  color:#ffd253;
+}
+
+.dungeon-judge-panel{
+  border-color:#5c2824;
+  background:
+    radial-gradient(circle at 10% 0,rgba(226,56,47,.11),transparent 28rem),
+    linear-gradient(180deg,#151719,#0f1113);
+}
+.dungeon-judge-panel:before{
+  width:100%;
+  height:4px;
+  background:repeating-linear-gradient(135deg,var(--warning) 0 9px,#1b1b1b 9px 18px);
+  box-shadow:none;
+}
+.judge-masthead{
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr) auto;
+  gap:14px;
+  align-items:start;
+  padding:6px 0 16px;
+  border-bottom:1px solid #362421;
+}
+.judge-masthead h2{
+  margin:3px 0 5px;
+  font-family:Impact,"Arial Narrow",sans-serif;
+  font-size:clamp(2rem,5vw,3.3rem);
+  line-height:.9;
+  letter-spacing:.05em;
+  color:#fff0db;
+  text-shadow:3px 3px 0 #4b100d,0 0 18px rgba(226,56,47,.15);
+}
+.judge-warning{
+  width:48px;
+  height:48px;
+  display:grid;
+  place-items:center;
+  border:1px solid #a3481d;
+  background:#32170c;
+  color:#ffc13d;
+  font-size:1.6rem;
+  font-weight:900;
+  clip-path:polygon(50% 0,100% 100%,0 100%);
+  padding-top:11px;
+  filter:drop-shadow(0 0 8px rgba(227,166,41,.12));
+}
+.judge-input-shell{
+  margin-top:16px;
+  padding:14px;
+  border:1px solid #393d41;
+  background:#0b0d0f;
+  box-shadow:inset 0 0 20px rgba(0,0,0,.35);
+}
+.judge-input-shell textarea{
+  width:100%;
+  min-height:150px;
+  border-radius:2px;
+  margin:0;
+}
+.judge-input-label{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:8px;
+  color:#9f9a90;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:.66rem;
+  letter-spacing:.1em;
+  text-transform:uppercase;
+}
+.judge-button{
+  width:100%;
+  margin-top:10px;
+  min-height:50px;
+  font-size:.86rem;
+}
+.dungeon-verdict,.broadcast-reveal{
+  position:relative;
+  overflow:hidden;
+  margin-top:18px;
+  padding:22px;
+  border:1px solid #6f332e;
+  background:
+    radial-gradient(circle at 50% -30%,rgba(226,56,47,.17),transparent 42%),
+    linear-gradient(180deg,#1b1515,#111315 60%);
+  box-shadow:0 16px 36px rgba(0,0,0,.35),0 0 26px rgba(226,56,47,.05);
+  animation:broadcastIn .24s ease-out;
+}
+.dungeon-verdict:before,.broadcast-reveal:before{
+  content:"";
+  position:absolute;
+  top:0;
+  left:0;
+  right:0;
+  height:5px;
+  background:repeating-linear-gradient(135deg,var(--warning) 0 10px,#151515 10px 20px);
+}
+.broadcast-scanline{
+  pointer-events:none;
+  position:absolute;
+  inset:0;
+  background:repeating-linear-gradient(180deg,transparent 0 3px,rgba(255,255,255,.012) 3px 4px);
+  opacity:.55;
+  mix-blend-mode:screen;
+}
+.verdict-status{
+  display:inline-block;
+  margin-bottom:12px;
+  border:1px solid #9a332b;
+  background:#3d100d;
+  color:#ff8d81;
+  padding:4px 7px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:.68rem;
+  font-weight:900;
+  letter-spacing:.12em;
+}
+.verdict-rewarded{
+  border-color:#7c5a20;
+  background:
+    radial-gradient(circle at 50% -30%,rgba(239,183,53,.13),transparent 42%),
+    linear-gradient(180deg,#1d1810,#111315 60%);
+}
+.verdict-rewarded .verdict-status{
+  border-color:#937321;
+  background:#382b0b;
+  color:#ffd65d;
+}
+.dungeon-verdict h2,.broadcast-reveal h2{
+  margin:5px 0 8px;
+  max-width:850px;
+  font-family:Impact,"Arial Narrow",sans-serif;
+  font-size:clamp(2rem,6vw,4rem);
+  line-height:.92;
+  text-transform:uppercase;
+  letter-spacing:.045em;
+  color:#fff1dd;
+  text-shadow:3px 3px 0 #4d120f;
+}
+.dungeon-announcement{
+  position:relative;
+  max-width:780px;
+  margin:12px 0 16px;
+  padding-left:14px;
+  border-left:3px solid var(--accent);
+  color:#e7ddd0;
+  font-size:1.02rem;
+  line-height:1.55;
+  font-style:italic;
+}
+.verdict-reward-card{
+  position:relative;
+  margin:16px 0;
+  padding:15px 16px;
+  border:1px solid #4a4f53;
+  border-left:5px solid var(--gold);
+  background:#0c0e10;
+}
+.verdict-reward-card strong{
+  display:block;
+  margin:4px 0 6px;
+  font-size:1.2rem;
+  color:#fff0c8;
+}
+.reward-label,.loot-box-rarity,.broadcast-alert-row{
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:.67rem;
+  font-weight:900;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+}
+.reward-label{color:var(--warning)}
+.gm-reasoning{
+  margin-top:14px;
+  border-top:1px solid #342d2b;
+  padding-top:10px;
+}
+.gm-reasoning summary{
+  cursor:pointer;
+  color:#a99e91;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:.7rem;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+}
+.gm-reasoning>div{
+  margin-top:8px;
+  color:#aaa39a;
+  line-height:1.45;
+}
+.apply-verdict-button{min-height:52px}
+
+.rarity-broadcast-B{
+  border-color:#7f5436!important;
+  box-shadow:inset 5px 0 rgba(184,121,67,.12),0 0 20px rgba(184,121,67,.04);
+}
+.rarity-broadcast-S{
+  border-color:#7e858c!important;
+  box-shadow:inset 5px 0 rgba(196,201,206,.10),0 0 22px rgba(196,201,206,.045);
+}
+.rarity-broadcast-G{
+  border-color:#9b781e!important;
+  box-shadow:inset 5px 0 rgba(239,183,53,.13),0 0 26px rgba(239,183,53,.08);
+}
+
+.loot-vault-panel{
+  border-color:#4c4030;
+}
+.loot-broadcast{
+  text-align:center;
+  margin:0 0 16px;
+}
+.broadcast-alert-row{
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  color:#ffd35c;
+  margin-bottom:11px;
+}
+.loot-broadcast-icon{
+  font-size:3.4rem;
+  filter:drop-shadow(0 0 14px rgba(239,183,53,.22));
+  animation:lootPop .45s cubic-bezier(.2,.8,.2,1);
+}
+.loot-broadcast h2{
+  margin-left:auto;
+  margin-right:auto;
+  text-shadow:3px 3px 0 #4a3210;
+}
+.loot-broadcast .dungeon-announcement{
+  margin-left:auto;
+  margin-right:auto;
+  text-align:left;
+  border-left-color:var(--gold);
+}
+.loot-broadcast-effect{
+  max-width:720px;
+  margin:14px auto 0;
+  padding:13px 15px;
+  border:1px solid #4f4530;
+  background:#11110d;
+  text-align:left;
+}
+.loot-broadcast-effect strong{
+  display:block;
+  color:#fff0bc;
+  line-height:1.45;
+}
+.loot-broadcast-effect span{
+  display:block;
+  margin-top:7px;
+  color:#9f988b;
+  font-size:.78rem;
+}
+.loot-box-grid{margin-top:8px}
+.loot-box-card{
+  position:relative;
+  overflow:hidden;
+  min-height:180px;
+  padding-top:16px;
+}
+.loot-box-card:after{
+  content:"";
+  position:absolute;
+  width:60px;
+  height:60px;
+  right:-24px;
+  bottom:-24px;
+  border:1px solid rgba(255,255,255,.05);
+  transform:rotate(45deg);
+}
+.loot-box-rarity{
+  color:var(--warning);
+  margin-bottom:9px;
+}
+.loot-box-card>strong{
+  display:block;
+  font-size:1.08rem;
+  margin-bottom:8px;
+  color:#f5eee1;
+}
+
+.achievement-panel{
+  border-color:#55472d;
+}
+.achievement-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:12px;
+}
+.achievement-unlock-card{
+  position:relative;
+  overflow:hidden;
+  min-height:210px;
+  padding:18px;
+  border:1px solid #685328;
+  background:
+    radial-gradient(circle at 100% 0,rgba(239,183,53,.11),transparent 45%),
+    linear-gradient(155deg,#1d1911,#111315);
+  box-shadow:0 10px 24px rgba(0,0,0,.22);
+}
+.achievement-unlock-card:before{
+  content:"";
+  position:absolute;
+  left:0;
+  top:0;
+  bottom:0;
+  width:4px;
+  background:var(--gold);
+  box-shadow:0 0 13px rgba(239,183,53,.35);
+}
+.achievement-number{
+  position:absolute;
+  top:12px;
+  right:12px;
+  color:#74694f;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:.62rem;
+  letter-spacing:.09em;
+}
+.achievement-trophy{
+  font-size:2.3rem;
+  margin-bottom:10px;
+  filter:drop-shadow(0 0 12px rgba(239,183,53,.2));
+}
+.achievement-unlock-card h2{
+  margin:5px 0 9px;
+  font-family:Impact,"Arial Narrow",sans-serif;
+  font-size:1.7rem;
+  line-height:1;
+  color:#ffe19a;
+  text-shadow:2px 2px 0 #4c3510;
+}
+.achievement-commentary{
+  color:#d2c7b6;
+  font-style:italic;
+  line-height:1.45;
+  border-top:1px solid #443923;
+  padding-top:10px;
+}
+
+.broadcast-log-entry{
+  position:relative;
+  overflow:hidden;
+  border-left-width:4px;
+  transition:transform .12s ease,border-color .12s ease;
+}
+.broadcast-log-entry:hover{
+  transform:translateX(2px);
+  border-color:#68403a;
+}
+.broadcast-log-entry:after{
+  content:"ARCHIVE";
+  position:absolute;
+  right:12px;
+  bottom:9px;
+  color:rgba(255,255,255,.035);
+  font-family:Impact,"Arial Narrow",sans-serif;
+  font-size:2.4rem;
+  letter-spacing:.08em;
+  pointer-events:none;
+}
+.broadcast-log-entry .story-event-text{
+  margin-top:10px;
+  color:#efe7dc;
+}
+.broadcast-log-entry .story-result{
+  position:relative;
+  z-index:1;
+}
+.broadcast-status{
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  letter-spacing:.03em;
+}
+
+@keyframes dungeonPulse{
+  0%,100%{opacity:.45;transform:scale(.9)}
+  50%{opacity:1;transform:scale(1.05)}
+}
+@keyframes broadcastIn{
+  from{opacity:0;transform:translateY(7px) scale(.995)}
+  to{opacity:1;transform:translateY(0) scale(1)}
+}
+@keyframes lootPop{
+  0%{transform:scale(.6) rotate(-8deg);opacity:0}
+  70%{transform:scale(1.12) rotate(3deg);opacity:1}
+  100%{transform:scale(1) rotate(0)}
+}
+
+@media(max-width:720px){
+  .judge-masthead{grid-template-columns:auto 1fr}
+  .judge-masthead .broadcast-light{grid-column:1/-1}
+  .achievement-grid{grid-template-columns:1fr}
+}
+@media(max-width:520px){
+  .dungeon-verdict,.broadcast-reveal{padding:17px 14px}
+  .judge-warning{width:40px;height:40px;font-size:1.25rem}
+  .dungeon-verdict h2,.broadcast-reveal h2{font-size:2rem}
+  .broadcast-alert-row{align-items:flex-start;flex-direction:column}
+}
