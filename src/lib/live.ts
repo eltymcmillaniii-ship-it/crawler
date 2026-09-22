@@ -12,6 +12,14 @@ export type GameSummary = {
   isOwner: boolean
 }
 
+export type PartyMember = {
+  id: string
+  name: string
+  className: string
+  portraitUrl: string | null
+  level: number
+}
+
 export type DungeonStoryEvent = {
   id: string
   eventText: string
@@ -397,6 +405,19 @@ export async function applyDungeonVerdict(gameId: string, eventText: string, ver
     p_verdict: verdict,
   })
   if (error) throw error
+}
+
+export async function loadPartyMembers(gameId: string): Promise<PartyMember[]> {
+  const sb = client()
+  const { data, error } = await sb.rpc('list_party_members', { p_game_id: gameId })
+  if (error) throw error
+  return (data ?? []).map((row: any) => ({
+    id: String(row.id),
+    name: String(row.name),
+    className: String(row.class_name ?? 'Former Normal Human'),
+    portraitUrl: row.portrait_url ? String(row.portrait_url) : null,
+    level: Number(row.level ?? 1),
+  }))
 }
 
 export async function loadDungeonStory(gameId: string): Promise<DungeonStoryEvent[]> {
