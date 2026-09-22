@@ -202,7 +202,7 @@ export async function completeCharacterSetup(args: {
 }
 
 const emptyGear = (): Record<GearSlot, Item | null> => ({
-  Head: null, Body: null, Hands: null, Feet: null,
+  Head: null, Shirt: null, Pants: null, Hands: null, Feet: null,
   'Weapon 1': null, 'Weapon 2': null, 'Accessory 1': null, 'Accessory 2': null,
 })
 
@@ -216,7 +216,7 @@ function normalizeRarity(value: string): Rarity {
 }
 
 function normalizeGearSlot(value: unknown): GearSlot | undefined {
-  const allowed: GearSlot[] = ['Head','Body','Hands','Feet','Weapon 1','Weapon 2','Accessory 1','Accessory 2']
+  const allowed: GearSlot[] = ['Head','Shirt','Pants','Hands','Feet','Weapon 1','Weapon 2','Accessory 1','Accessory 2']
   return allowed.includes(value as GearSlot) ? value as GearSlot : undefined
 }
 
