@@ -268,7 +268,7 @@ function fallback(body: any) {
         kind: 'loot_box',
         distribution: 'shared',
         rarity,
-        box_name: healing ? 'Box of Barely Adequate Medical Supervision' : 'Box of Management-Mandated Generosity',
+        box_name: healing ? 'Box of Administrative Concern' : 'Box of Management-Mandated Generosity',
         opening_message: healing ? 'Oh good. Medical intervention. Because apparently natural selection needs supervision.' : 'Management has intervened. Please enjoy this suspiciously specific act of generosity.',
         item: {
           name: minorHealing ? 'Minor Healing Potion' : healing ? 'Healing Potion' : 'Dungeon Supply',
