@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeftRight, Brain, Gift, Package, ScrollText, Sparkles, Trophy, Users } from 'lucide-react'
+import { ArrowLeftRight, Brain, Gift, Package, ScrollText, Settings, Sparkles, Trophy, Users } from 'lucide-react'
 import type { Character, DungeonVerdict, GearSlot, LootOpenResult, TradeRecord, TradeTarget, TradeableItem } from './lib/types'
 import { supabase, supabaseConfigured } from './lib/supabase'
 import {
   acceptTrade, applyDungeonCommand, applyDungeonVerdict, cancelTrade, completeCharacterSetup, createGame, createGmLogin, createTrade, declineTrade, deleteGame, ensureAnonymousUser, joinGame,
-  equipCharacterItem, gmRenameItem, listMyGames, listMyTrades, listTradeableItems, listTradeTargets, loadCharacters, loadDungeonStory, loadPartyMembers, openLootBox, persistCharacterDiff, recoverCrawler, renameCharacter, signInGm, signOutUser, subscribeToGame, unequipCharacterItem, uploadCharacterPortrait, useCharacterItem,
+  equipCharacterItem, gmRenameItem, listMyGames, listMyTrades, listTradeableItems, listTradeTargets, loadCharacters, loadDungeonStory, loadPartyMembers, openLootBox, persistCharacterDiff, recoverCrawler, renameCharacter, signInGm, signOutUser, subscribeToGame, unequipCharacterItem, updateGameSettings, uploadCharacterPortrait, useCharacterItem,
 } from './lib/live'
 import type { DungeonStoryEvent, GameSummary, PartyMember } from './lib/live'
 
@@ -820,9 +820,10 @@ function StoryLog({gameId,characters}:{gameId:string;characters:Character[]}) {
   </section>
 }
 
-function GM({gameId,characters,refresh}:{gameId:string;characters:Character[];refresh:()=>Promise<void>}) {
+function GM({game,characters,refresh}:{game:GameSummary;characters:Character[];refresh:()=>Promise<void>}) {
+  const gameId=game.id
   const [selected,setSelected]=useState('')
-  const [tab,setTab]=useState<'profiles'|'judge'|'story'>('profiles')
+  const [tab,setTab]=useState<'profiles'|'judge'|'story'|'settings'>('profiles')
   const [msg,setMsg]=useState('')
   const [itemName,setItemName]=useState('')
   const [itemRarity,setItemRarity]=useState<'B'|'S'|'G'>('B')
@@ -835,10 +836,19 @@ function GM({gameId,characters,refresh}:{gameId:string;characters:Character[];re
   const [itemQuantity,setItemQuantity]=useState(1)
   const [skillName,setSkillName]=useState('')
   const [skillLevel,setSkillLevel]=useState(1)
+  const [gameName,setGameName]=useState(game.name)
+  const [floorNumber,setFloorNumber]=useState(game.floorNumber)
+  const [floorTheme,setFloorTheme]=useState(game.floorTheme)
+  const [settingsBusy,setSettingsBusy]=useState(false)
   const current=characters.find(c=>c.id===selected)||characters[0]
   const currentGearBonuses=current?equippedStatBonuses(current):zeroStatBonuses()
   const currentTotalConstitution=current?current.stats.Constitution+currentGearBonuses.Constitution:0
   useEffect(()=>{if(!selected&&characters[0])setSelected(characters[0].id)},[characters,selected])
+  useEffect(()=>{
+    setGameName(game.name)
+    setFloorNumber(game.floorNumber)
+    setFloorTheme(game.floorTheme)
+  },[game.name,game.floorNumber,game.floorTheme])
   async function rpc(name:string,args:any){
     if(!supabase)return false
     setMsg('')
@@ -890,6 +900,24 @@ function GM({gameId,characters,refresh}:{gameId:string;characters:Character[];re
       setMsg(`Skill added to ${current.name}.`)
     }
   }
+  async function saveGameSettings(){
+    const cleanName=gameName.trim()
+    const cleanTheme=floorTheme.trim()
+    const floor=Math.max(1,Math.min(999,Math.trunc(floorNumber||1)))
+    if(!cleanName){setMsg('Game name is required.');return}
+    setSettingsBusy(true);setMsg('')
+    try{
+      await updateGameSettings(gameId,cleanName,floor,cleanTheme)
+      setFloorNumber(floor)
+      await refresh()
+      setMsg(`Game settings updated: ${cleanName} · Floor ${floor}${cleanTheme?` · ${cleanTheme}`:''}.`)
+    }catch(e){
+      setMsg(e instanceof Error?e.message:'Could not update game settings')
+    }finally{
+      setSettingsBusy(false)
+    }
+  }
+
   async function deletePlayer(character:Character){
     if(!supabase)return
     const confirmed=window.confirm(`Remove ${character.name} from this game? This permanently deletes their crawler, inventory, achievements, loot boxes, and trade history for this game.`)
@@ -941,12 +969,33 @@ function GM({gameId,characters,refresh}:{gameId:string;characters:Character[];re
     await refresh()
     setMsg(`New recovery code for ${character.name}: ${String(data)}`)
   }
-  if(!current&&tab==='profiles')return <section className="panel pad"><h3>Waiting for crawlers</h3><p className="muted">Share the join code. Profiles appear here automatically.</p></section>
   return <>
-    <nav className="tabs"><button className={`button ${tab==='profiles'?'primary':''}`} onClick={()=>setTab('profiles')}><Users size={16}/>Party Profiles</button><button className={`button ${tab==='judge'?'primary':''}`} onClick={()=>setTab('judge')}><Sparkles size={16}/>Dungeon Judge</button><button className={`button ${tab==='story'?'primary':''}`} onClick={()=>setTab('story')}><ScrollText size={16}/>Story Log</button></nav>
+    <nav className="tabs"><button className={`button ${tab==='profiles'?'primary':''}`} onClick={()=>setTab('profiles')}><Users size={16}/>Party Profiles</button><button className={`button ${tab==='judge'?'primary':''}`} onClick={()=>setTab('judge')}><Sparkles size={16}/>Dungeon Judge</button><button className={`button ${tab==='story'?'primary':''}`} onClick={()=>setTab('story')}><ScrollText size={16}/>Story Log</button><button className={`button ${tab==='settings'?'primary':''}`} onClick={()=>setTab('settings')}><Settings size={16}/>Game Settings</button></nav>
     {msg&&<div className="status-message">{msg}</div>}
     {tab==='judge'&&<Judge gameId={gameId} characters={characters} refresh={refresh}/>}
     {tab==='story'&&<StoryLog gameId={gameId} characters={characters}/>}
+    {tab==='settings'&&<section className="panel pad game-settings-panel">
+      <div className="settings-hero">
+        <div>
+          <div className="broadcast-kicker">DUNGEON CONFIGURATION</div>
+          <h2>Game & Floor Settings</h2>
+          <p className="muted">These details update the live game for everyone connected.</p>
+        </div>
+        <span className="pill">Join Code {game.joinCode}</span>
+      </div>
+      <div className="game-settings-grid">
+        <label>Game name<input value={gameName} maxLength={80} onChange={e=>setGameName(e.target.value)} placeholder="Friday Crawl"/></label>
+        <label>Floor number<input type="number" min={1} max={999} value={floorNumber} onChange={e=>setFloorNumber(Number(e.target.value))}/></label>
+        <label className="game-theme-field">Floor theme<input value={floorTheme} maxLength={120} onChange={e=>setFloorTheme(e.target.value)} placeholder="Examples: Goblin warrens, flooded crypt, abandoned mall"/></label>
+      </div>
+      <div className="floor-theme-preview">
+        <div className="eyebrow">Current Floor Identity</div>
+        <strong>FLOOR {Math.max(1,Math.trunc(floorNumber||1))}</strong>
+        <span>{floorTheme.trim()||'No theme named yet.'}</span>
+      </div>
+      <button className="button primary settings-save-button" disabled={settingsBusy||!gameName.trim()} onClick={()=>void saveGameSettings()}>{settingsBusy?'SAVING…':'SAVE GAME SETTINGS'}</button>
+    </section>}
+    {tab==='profiles'&&!current&&<section className="panel pad"><h3>Waiting for crawlers</h3><p className="muted">Share the join code. Profiles appear here automatically.</p></section>}
     {tab==='profiles'&&current&&<div className="gm-layout"><aside className="panel pad"><h3>Party</h3>{characters.map(c=>{const gearBonus=equippedStatBonuses(c);return <div className={`roster-card-shell ${current.id===c.id?'selected':''}`} key={c.id}>
       <button className={`roster-card ${current.id===c.id?'selected':''}`} onClick={()=>setSelected(c.id)}>
         <div className="roster-avatar">
@@ -1275,7 +1324,18 @@ export default function App(){
   const [liveStatus,setLiveStatus]=useState<'connecting'|'live'|'reconnecting'>('connecting')
 
   async function reloadGames(uid=userId){if(!uid)return[];const g=await listMyGames(uid);setGames(g);return g}
-  async function refresh(g=game){if(!g)return;setCharacters(await loadCharacters(g.id))}
+  async function refresh(g=game){
+    if(!g)return
+    const charactersPromise=loadCharacters(g.id)
+    const gamesPromise=userId?listMyGames(userId):Promise.resolve<GameSummary[]|null>(null)
+    const [nextCharacters,nextGames]=await Promise.all([charactersPromise,gamesPromise])
+    setCharacters(nextCharacters)
+    if(nextGames){
+      setGames(nextGames)
+      const updated=nextGames.find(item=>item.id===g.id)
+      if(updated)setGame(updated)
+    }
+  }
   async function open(g:GameSummary){setGame(g);localStorage.setItem('crawler-active-game',g.id);await refresh(g)}
 
   useEffect(()=>{if(!supabaseConfigured){setLoading(false);return}void(async()=>{try{const u=await ensureAnonymousUser();setUserId(u.id);setIsAnonymous(Boolean(u.is_anonymous));setAccountEmail(String(u.email??''));const gs=await listMyGames(u.id);setGames(gs);const remembered=gs.find(g=>g.id===localStorage.getItem('crawler-active-game'));if(remembered)await open(remembered)}catch(e){setError(e instanceof Error?e.message:'Startup failed')}finally{setLoading(false)}})()},[])
@@ -1311,7 +1371,7 @@ export default function App(){
       <div className="topbar-copy">
         <div className="broadcast-kicker">DUNGEON NETWORK // FLOOR {game.floorNumber}</div>
         <h1>{game.name}</h1>
-        <div className="topbar-meta"><span>Floor {game.floorNumber}</span><span className="topbar-divider">/</span><span>Join code <strong className="join-code inline-code">{game.joinCode}</strong></span></div>
+        <div className="topbar-meta"><span>Floor {game.floorNumber}</span>{game.floorTheme&&<><span className="topbar-divider">/</span><span>{game.floorTheme}</span></>}<span className="topbar-divider">/</span><span>Join code <strong className="join-code inline-code">{game.joinCode}</strong></span></div>
       </div>
       <div className="topbar-actions">
         <span className={`pill topbar-role-pill role-${game.role}`}>{game.role==='gm'?'GM CONTROL':'CRAWLER'}</span>
@@ -1319,6 +1379,6 @@ export default function App(){
       </div>
     </header>
     <div className={`system-strip live-status-${liveStatus}`}><span className="system-dot"/><strong>{liveStatus==='live'?'SYSTEM ONLINE':liveStatus==='connecting'?'CONNECTING':'RECONNECTING'}</strong><span>{liveStatus==='live'?'Live multiplayer connected':'Syncing live game state…'}</span><span className="system-strip-spacer"/><span className="system-floor">FLOOR {game.floorNumber}</span></div>
-    {game.role==='gm'?<GM gameId={game.id} characters={characters} refresh={()=>refresh(game)}/>:me?!me.setupComplete?<Setup character={me} onDone={()=>refresh(game)}/>:<Player gameId={game.id} character={me} refresh={()=>refresh(game)}/>:<section className="panel pad"><p>Preparing your crawler…</p></section>}
+    {game.role==='gm'?<GM game={game} characters={characters} refresh={()=>refresh(game)}/>:me?!me.setupComplete?<Setup character={me} onDone={()=>refresh(game)}/>:<Player gameId={game.id} character={me} refresh={()=>refresh(game)}/>:<section className="panel pad"><p>Preparing your crawler…</p></section>}
   </div>
 }
