@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Brain, Gift, Package, Sparkles, Trophy, Users } from 'lucide-react'
+import { Brain, Gift, Package, ScrollText, Sparkles, Trophy, Users } from 'lucide-react'
 import type { Character, DungeonVerdict } from './lib/types'
 import { supabase, supabaseConfigured } from './lib/supabase'
 import {
   applyDungeonVerdict, completeCharacterSetup, createGame, createGmLogin, deleteGame, ensureAnonymousUser, joinGame,
-  listMyGames, loadCharacters, openLootBox, persistCharacterDiff, signInGm, signOutUser, subscribeToGame, uploadCharacterPortrait,
+  listMyGames, loadCharacters, loadDungeonStory, openLootBox, persistCharacterDiff, signInGm, signOutUser, subscribeToGame, uploadCharacterPortrait,
 } from './lib/live'
-import type { GameSummary } from './lib/live'
+import type { DungeonStoryEvent, GameSummary } from './lib/live'
 
 const stats = ['Strength','Dexterity','Intelligence','Constitution','Charisma'] as const
 function Hearts({c,m}:{c:number;m:number}) {
@@ -265,9 +265,78 @@ function Judge({gameId,characters,refresh}:{gameId:string;characters:Character[]
   return <section className="panel pad"><h3><Sparkles size={18}/>Dungeon Judge</h3><textarea rows={5} value={event} onChange={e=>setEvent(e.target.value)} placeholder="Describe what the crawlers just did…"/><button className="button primary" disabled={busy} onClick={()=>void judge()}>{busy?'Judging…':'Let the Dungeon Judge'}</button>{verdict&&<div className="loot-reveal"><h2>{verdict.should_reward?(verdict.achievement?.title||verdict.reward.name):'No Reward'}</h2><p>{verdict.achievement?.commentary||'The Dungeon is not impressed.'}</p>{verdict.reward.kind!=='none'&&<div className="item-card"><strong>{verdict.reward.name}</strong><div>{verdict.reward.effect}</div></div>}<div className="muted small">{verdict.reasoning_for_gm}</div><button className="button primary wide" onClick={()=>void apply()}>Apply Decision</button></div>}{msg&&<div className="status-message">{msg}</div>}</section>
 }
 
+function StoryLog({gameId,characters}:{gameId:string;characters:Character[]}) {
+  const [events,setEvents]=useState<DungeonStoryEvent[]>([])
+  const [loading,setLoading]=useState(true)
+  const [error,setError]=useState('')
+
+  async function reload(){
+    setError('')
+    try{
+      setEvents(await loadDungeonStory(gameId))
+    }catch(e){
+      setError(e instanceof Error?e.message:'Could not load story log')
+    }finally{
+      setLoading(false)
+    }
+  }
+
+  useEffect(()=>{void reload()},[gameId,characters])
+
+  const nameFor=(id:string)=>characters.find(c=>c.id===id)?.name??'Unknown Crawler'
+  const rarityName=(rarity:string)=>rarity==='B'?'Bronze':rarity==='S'?'Silver':rarity==='G'?'Gold':''
+  const formatTime=(value:string)=>{
+    const date=new Date(value)
+    return Number.isNaN(date.getTime())?'':date.toLocaleString([],{
+      month:'short',day:'numeric',hour:'numeric',minute:'2-digit'
+    })
+  }
+
+  return <section className="panel pad story-log-panel">
+    <div className="section-title">
+      <div><div className="eyebrow">GM Memory</div><h3><ScrollText size={18}/>Story Log</h3></div>
+      <span className="pill">{events.length} approved</span>
+    </div>
+    <p className="muted small">Every Dungeon AI decision you approve is recorded here so you can keep the campaign straight.</p>
+    {loading&&<div className="muted">Loading the Dungeon's receipts…</div>}
+    {error&&<div className="error-banner">{error}</div>}
+    {!loading&&!error&&events.length===0&&<div className="class-empty">No approved Dungeon decisions yet.</div>}
+    <div className="story-log-list">
+      {events.map(entry=>{
+        const verdict=entry.verdict
+        const recipients=(verdict.recipients??[]).map(nameFor)
+        const hasReward=Boolean(verdict.reward?.kind&&verdict.reward.kind!=='none')
+        const badgeClass=hasReward&&verdict.reward.rarity!=='none'?'pill rarity-pill-'+verdict.reward.rarity:'pill'
+        const badgeText=hasReward
+          ? (rarityName(verdict.reward.rarity)+' '+verdict.reward.kind.replace('_',' '))
+          : verdict.achievement?'Achievement':'No Reward'
+        return <article className="story-entry" key={entry.id}>
+          <div className="story-entry-head">
+            <span className="story-time">{formatTime(entry.createdAt)}</span>
+            <span className={badgeClass}>{badgeText}</span>
+          </div>
+          <div className="story-event-text">{entry.eventText}</div>
+          {recipients.length>0&&<div className="muted small">Crawler{recipients.length===1?'':'s'}: {recipients.join(', ')}</div>}
+          {verdict.achievement&&<div className="story-result">
+            <strong>🏆 {verdict.achievement.title}</strong>
+            {verdict.achievement.commentary&&<div>{verdict.achievement.commentary}</div>}
+          </div>}
+          {hasReward&&<div className={'story-result story-reward rarity-'+verdict.reward.rarity}>
+            <strong>🎁 {verdict.reward.name}</strong>
+            {verdict.reward.effect&&<div>{verdict.reward.effect}</div>}
+            {verdict.reward.quirk&&<div className="muted small">Quirk: {verdict.reward.quirk}</div>}
+          </div>}
+          {!verdict.achievement&&!hasReward&&<div className="muted small">The Dungeon approved this moment but awarded nothing.</div>}
+          {verdict.reasoning_for_gm&&<details className="story-reasoning"><summary>GM reasoning</summary><div className="muted small">{verdict.reasoning_for_gm}</div></details>}
+        </article>
+      })}
+    </div>
+  </section>
+}
+
 function GM({gameId,characters,refresh}:{gameId:string;characters:Character[];refresh:()=>Promise<void>}) {
   const [selected,setSelected]=useState('')
-  const [tab,setTab]=useState<'profiles'|'judge'>('profiles')
+  const [tab,setTab]=useState<'profiles'|'judge'|'story'>('profiles')
   const [msg,setMsg]=useState('')
   const [itemName,setItemName]=useState('')
   const [itemRarity,setItemRarity]=useState<'B'|'S'|'G'>('B')
@@ -339,9 +408,10 @@ function GM({gameId,characters,refresh}:{gameId:string;characters:Character[];re
   }
   if(!current&&tab==='profiles')return <section className="panel pad"><h3>Waiting for crawlers</h3><p className="muted">Share the join code. Profiles appear here automatically.</p></section>
   return <>
-    <nav className="tabs"><button className={`button ${tab==='profiles'?'primary':''}`} onClick={()=>setTab('profiles')}><Users size={16}/>Party Profiles</button><button className={`button ${tab==='judge'?'primary':''}`} onClick={()=>setTab('judge')}><Sparkles size={16}/>Dungeon Judge</button></nav>
+    <nav className="tabs"><button className={`button ${tab==='profiles'?'primary':''}`} onClick={()=>setTab('profiles')}><Users size={16}/>Party Profiles</button><button className={`button ${tab==='judge'?'primary':''}`} onClick={()=>setTab('judge')}><Sparkles size={16}/>Dungeon Judge</button><button className={`button ${tab==='story'?'primary':''}`} onClick={()=>setTab('story')}><ScrollText size={16}/>Story Log</button></nav>
     {msg&&<div className="status-message">{msg}</div>}
     {tab==='judge'&&<Judge gameId={gameId} characters={characters} refresh={refresh}/>}
+    {tab==='story'&&<StoryLog gameId={gameId} characters={characters}/>}
     {tab==='profiles'&&current&&<div className="gm-layout"><aside className="panel pad"><h3>Party</h3>{characters.map(c=><button className={`roster-card ${current.id===c.id?'selected':''}`} key={c.id} onClick={()=>setSelected(c.id)}>
       <div className="roster-avatar">
         {c.portraitUrl
