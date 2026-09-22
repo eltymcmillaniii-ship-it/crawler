@@ -1,6 +1,6 @@
 export type Rarity = 'B' | 'S' | 'G'
 export type Role = 'gm' | 'player'
-export type GearSlot = 'Head' | 'Body' | 'Hands' | 'Feet' | 'Weapon 1' | 'Weapon 2' | 'Accessory 1' | 'Accessory 2'
+export type GearSlot = 'Head' | 'Shirt' | 'Pants' | 'Hands' | 'Feet' | 'Weapon 1' | 'Weapon 2' | 'Accessory 1' | 'Accessory 2'
 
 export type Item = {
   id: string
