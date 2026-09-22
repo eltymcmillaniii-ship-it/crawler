@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Brain, Gift, Package, ScrollText, Sparkles, Trophy, Users } from 'lucide-react'
-import type { Character, DungeonVerdict } from './lib/types'
+import type { Character, DungeonVerdict, LootOpenResult } from './lib/types'
 import { supabase, supabaseConfigured } from './lib/supabase'
 import {
   applyDungeonVerdict, completeCharacterSetup, createGame, createGmLogin, deleteGame, ensureAnonymousUser, joinGame,
@@ -163,6 +163,7 @@ function Player({character,refresh}:{character:Character;refresh:()=>Promise<voi
   const [msg,setMsg]=useState('')
   const [busy,setBusy]=useState(false)
   const [uploadingPortrait,setUploadingPortrait]=useState(false)
+  const [lootReveal,setLootReveal]=useState<LootOpenResult|null>(null)
 
   async function uploadPortrait(file:File){
     if(!file)return
@@ -194,13 +195,16 @@ function Player({character,refresh}:{character:Character;refresh:()=>Promise<voi
     catch(e){setMsg(e instanceof Error?e.message:'Could not spend point')}finally{setBusy(false)}
   }
   async function openBox(id:string){
-    setBusy(true);setMsg('')
-    try{const r=await openLootBox(id);setMsg(`${r.openingMessage} — You received ${r.item.name}.`);await refresh()}
-    catch(e){setMsg(e instanceof Error?e.message:'Box failed to open')}finally{setBusy(false)}
+    setBusy(true);setMsg('');setLootReveal(null)
+    try{
+      const r=await openLootBox(id)
+      setLootReveal(r)
+      await refresh()
+    }catch(e){setMsg(e instanceof Error?e.message:'Box failed to open')}finally{setBusy(false)}
   }
   return <>
     <section className="panel pad player-header"><div><h2>{character.name} <span className="pill">Level {character.level}</span></h2><div className="muted">{character.background}</div></div><div><div className="eyebrow">Health</div><Hearts c={character.currentHealth} m={character.maxHealth}/></div></section>
-    {character.unspentStatPoints>0&&<div className="live-banner"><strong>LEVEL UP!</strong> You have {character.unspentStatPoints} stat point{character.unspentStatPoints===1?'':'s'} to spend.</div>}
+    {character.unspentStatPoints>0&&<div className="live-banner level-up-broadcast"><div className="broadcast-kicker">SYSTEM OVERRIDE</div><strong>LEVEL UP!</strong><span>You have {character.unspentStatPoints} stat point{character.unspentStatPoints===1?'':'s'} to spend.</span></div>}
     <nav className="tabs"><button className={`button ${tab==='crawler'?'primary':''}`} onClick={()=>setTab('crawler')}><Users size={16}/>Crawler</button><button className={`button ${tab==='inventory'?'primary':''}`} onClick={()=>setTab('inventory')}><Package size={16}/>Inventory</button><button className={`button ${tab==='loot'?'primary':''}`} onClick={()=>setTab('loot')}><Gift size={16}/>Loot</button><button className={`button ${tab==='achievements'?'primary':''}`} onClick={()=>setTab('achievements')}><Trophy size={16}/>Achievements</button></nav>
     {msg&&<div className="status-message">{msg}</div>}
     {tab==='crawler'&&<div className="crawler-layout">
@@ -227,8 +231,30 @@ function Player({character,refresh}:{character:Character;refresh:()=>Promise<voi
       </div>
     </div>}
     {tab==='inventory'&&<section className="panel pad"><h3>Backpack</h3><div className="card-grid">{character.inventory.length?character.inventory.map(i=><div className={`item-card rarity-${i.rarity}`} key={i.id}><strong>{i.name}</strong><div className="muted small">{i.rarity==='B'?'Bronze':i.rarity==='S'?'Silver':'Gold'} · {i.type} · Core {i.coreValue}{(i.quantity??1)>1?` ×${i.quantity}`:''}</div><div>{i.effect}</div>{i.quirk&&<div className="muted small">Quirk: {i.quirk}</div>}</div>):<div className="muted">Empty.</div>}</div><h3>Equipped Gear</h3><div className="card-grid">{Object.entries(character.gear).map(([slot,i])=><div className="item-card" key={slot}><div className="gear-label">{slot}</div><strong>{i?.name??'Empty'}</strong>{i&&<><div className="muted small">{i.rarity==='B'?'Bronze':i.rarity==='S'?'Silver':'Gold'} · Core {i.coreValue}</div><div className="muted small">{i.effect}</div></>}</div>)}</div></section>}
-    {tab==='loot'&&<section className="panel pad"><h3>Unopened Loot Boxes</h3><div className="card-grid">{character.boxes.length?character.boxes.map(b=><div className={`item-card rarity-${b.rarity}`} key={b.id}><strong>🎁 {b.name}</strong><button className="button primary wide" disabled={busy} onClick={()=>void openBox(b.id)}>Open Box</button></div>):<div className="muted">No unopened boxes.</div>}</div></section>}
-    {tab==='achievements'&&<section className="panel pad"><h3>Achievements</h3>{character.achievements.length?character.achievements.map(a=><div className="tag-row" key={a.id}>🏆 <strong>{a.name}</strong><div className="muted small">{a.commentary}</div></div>):<div className="muted">None yet.</div>}</section>}
+    {tab==='loot'&&<section className="panel pad loot-vault-panel">
+      <div className="broadcast-section-heading"><div><div className="broadcast-kicker">DUNGEON REWARD VAULT</div><h3>Unopened Loot Boxes</h3></div><span className="broadcast-light">LIVE</span></div>
+      {lootReveal&&<div className={`broadcast-reveal loot-broadcast rarity-broadcast-${lootReveal.rarity}`}>
+        <div className="broadcast-scanline"/>
+        <div className="broadcast-alert-row"><span>REWARD DISPENSED</span><span>{lootReveal.rarity==='B'?'BRONZE':lootReveal.rarity==='S'?'SILVER':'GOLD'}</span></div>
+        <div className="loot-broadcast-icon">🎁</div>
+        <div className="broadcast-kicker">{lootReveal.boxName}</div>
+        <h2>{lootReveal.item.name}</h2>
+        <p className="dungeon-announcement">{lootReveal.openingMessage}</p>
+        <div className="loot-broadcast-effect"><strong>{lootReveal.item.effect}</strong>{lootReveal.item.quirk&&<span>AI NOTE: {lootReveal.item.quirk}</span>}</div>
+        <button className="button wide" onClick={()=>setLootReveal(null)}>Dismiss Broadcast</button>
+      </div>}
+      <div className="card-grid loot-box-grid">{character.boxes.length?character.boxes.map(b=><div className={`item-card loot-box-card rarity-${b.rarity}`} key={b.id}><div className="loot-box-rarity">{b.rarity==='B'?'BRONZE':b.rarity==='S'?'SILVER':'GOLD'} CACHE</div><strong>🎁 {b.name}</strong><div className="muted small">Authorized for immediate opening. Consequences not included.</div><button className="button primary wide" disabled={busy} onClick={()=>void openBox(b.id)}>{busy?'Decrypting…':'Open Box'}</button></div>):<div className="muted">No unopened boxes. The Dungeon is disappointed in your earning potential.</div>}</div>
+    </section>}
+    {tab==='achievements'&&<section className="panel pad achievement-panel">
+      <div className="broadcast-section-heading"><div><div className="broadcast-kicker">OFFICIAL DUNGEON RECORD</div><h3><Trophy size={18}/>Achievements</h3></div><span className="pill">{character.achievements.length} unlocked</span></div>
+      {character.achievements.length?<div className="achievement-grid">{character.achievements.map((a,index)=><article className="achievement-unlock-card" key={a.id}>
+        <div className="achievement-number">ACH-{String(index+1).padStart(3,'0')}</div>
+        <div className="achievement-trophy">🏆</div>
+        <div className="broadcast-kicker">ACHIEVEMENT UNLOCKED</div>
+        <h2>{a.name}</h2>
+        <div className="achievement-commentary">{a.commentary}</div>
+      </article>)}</div>:<div className="class-empty">No achievements yet. Try doing something stupid enough to become memorable.</div>}
+    </section>}
   </>
 }
 
@@ -261,7 +287,34 @@ function Judge({gameId,characters,refresh}:{gameId:string;characters:Character[]
     try{await applyDungeonVerdict(gameId,event,verdict);await refresh();setMsg('Dungeon decision applied.');setVerdict(null);setEvent('')}
     catch(e){setMsg(e instanceof Error?e.message:'Could not apply verdict')}finally{setBusy(false)}
   }
-  return <section className="panel pad"><h3><Sparkles size={18}/>Dungeon Judge</h3><textarea rows={5} value={event} onChange={e=>setEvent(e.target.value)} placeholder="Describe what the crawlers just did…"/><button className="button primary" disabled={busy} onClick={()=>void judge()}>{busy?'Judging…':'Let the Dungeon Judge'}</button>{verdict&&<div className="loot-reveal"><h2>{verdict.should_reward?(verdict.achievement?.title||verdict.reward.name):'No Reward'}</h2><p>{verdict.achievement?.commentary||'The Dungeon is not impressed.'}</p>{verdict.reward.kind!=='none'&&<div className="item-card"><strong>{verdict.reward.name}</strong><div>{verdict.reward.effect}</div></div>}<div className="muted small">{verdict.reasoning_for_gm}</div><button className="button primary wide" onClick={()=>void apply()}>Apply Decision</button></div>}{msg&&<div className="status-message">{msg}</div>}</section>
+  return <section className="panel pad dungeon-judge-panel">
+    <div className="judge-masthead">
+      <div className="judge-warning">⚠</div>
+      <div><div className="broadcast-kicker">DUNGEON AI // EVENT REVIEW</div><h2>DUNGEON JUDGE</h2><div className="muted small">Describe the incident. The system will decide whether incompetence deserves recognition.</div></div>
+      <span className="broadcast-light">AI ONLINE</span>
+    </div>
+    <div className="judge-input-shell">
+      <div className="judge-input-label"><span>INCIDENT REPORT</span><span>{event.length} CHARS</span></div>
+      <textarea rows={6} value={event} onChange={e=>setEvent(e.target.value)} placeholder="Describe what the crawlers just did…"/>
+      <button className="button primary judge-button" disabled={busy||!event.trim()} onClick={()=>void judge()}>{busy?'ANALYZING BAD DECISIONS…':'SUBMIT TO THE DUNGEON'}</button>
+    </div>
+    {verdict&&<div className={`dungeon-verdict ${verdict.should_reward?'verdict-rewarded':'verdict-denied'}`}>
+      <div className="broadcast-scanline"/>
+      <div className="verdict-status">{verdict.should_reward?'EVENT WORTHY':'EVENT REVIEWED'}</div>
+      <div className="broadcast-kicker">{verdict.achievement?'ACHIEVEMENT DECISION':verdict.reward.kind!=='none'?'REWARD DECISION':'NO REWARD ISSUED'}</div>
+      <h2>{verdict.should_reward?(verdict.achievement?.title||verdict.reward.name):'THE DUNGEON IS NOT IMPRESSED'}</h2>
+      <p className="dungeon-announcement">{verdict.achievement?.commentary||'Your behavior has been documented. Unfortunately, documentation is all you get.'}</p>
+      {verdict.reward.kind!=='none'&&<div className={`verdict-reward-card rarity-broadcast-${verdict.reward.rarity}`}>
+        <div className="reward-label">{verdict.reward.rarity==='B'?'BRONZE':verdict.reward.rarity==='S'?'SILVER':verdict.reward.rarity==='G'?'GOLD':'DUNGEON'} {verdict.reward.kind.replace('_',' ').toUpperCase()}</div>
+        <strong>{verdict.reward.name}</strong>
+        <div>{verdict.reward.effect}</div>
+        {verdict.reward.quirk&&<div className="muted small">AI QUIRK: {verdict.reward.quirk}</div>}
+      </div>}
+      <details className="gm-reasoning"><summary>GM-only reasoning</summary><div>{verdict.reasoning_for_gm}</div></details>
+      <button className="button primary wide apply-verdict-button" onClick={()=>void apply()}>APPROVE & APPLY DECISION</button>
+    </div>}
+    {msg&&<div className="status-message broadcast-status">{msg}</div>}
+  </section>
 }
 
 function StoryLog({gameId,characters}:{gameId:string;characters:Character[]}) {
@@ -309,9 +362,9 @@ function StoryLog({gameId,characters}:{gameId:string;characters:Character[]}) {
         const badgeText=hasReward
           ? (rarityName(verdict.reward.rarity)+' '+verdict.reward.kind.replace('_',' '))
           : verdict.achievement?'Achievement':'No Reward'
-        return <article className="story-entry" key={entry.id}>
+        return <article className="story-entry broadcast-log-entry" key={entry.id}>
           <div className="story-entry-head">
-            <span className="story-time">{formatTime(entry.createdAt)}</span>
+            <div><div className="broadcast-kicker">ARCHIVED DUNGEON EVENT</div><span className="story-time">{formatTime(entry.createdAt)}</span></div>
             <span className={badgeClass}>{badgeText}</span>
           </div>
           <div className="story-event-text">{entry.eventText}</div>
