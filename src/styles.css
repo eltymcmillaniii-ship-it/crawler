@@ -993,3 +993,26 @@ input::placeholder,textarea::placeholder{color:#6f716f}
   .dungeon-verdict h2,.broadcast-reveal h2{font-size:2rem}
   .broadcast-alert-row{align-items:flex-start;flex-direction:column}
 }
+
+
+/* v1.1 — functional editing and equipment */
+.player-name-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.compact-action{min-height:34px;padding:5px 9px;font-size:.68rem}
+.inventory-help{margin:-4px 0 14px}
+.equip-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}
+.equip-button{flex:1;min-width:110px}
+.item-not-equippable{margin-top:10px;padding-top:8px;border-top:1px solid #303438}
+.equipped-item-card{min-height:155px;display:flex;flex-direction:column}
+.equipped-item-card .unequip-button{margin-top:auto}
+.unequip-button{border-color:#5a4330}
+.gm-profile-actions{display:flex;flex-direction:column;gap:8px}
+.gm-profile-actions .danger-button{margin-top:0!important}
+@media(max-width:800px){
+  .gm-profile-actions{flex-direction:row}
+  .gm-profile-actions .button{flex:1}
+}
+@media(max-width:520px){
+  .player-name-row{align-items:flex-start;flex-direction:column}
+  .player-name-row .compact-action{width:100%}
+  .gm-profile-actions{flex-direction:column}
+}
