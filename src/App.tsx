@@ -606,6 +606,35 @@ function Judge({gameId,characters,refresh}:{gameId:string;characters:Character[]
   const streamRef=useRef<MediaStream|null>(null)
   const chunksRef=useRef<Blob[]>([])
   const recordingTimerRef=useRef<number|null>(null)
+  const [commandVoiceState,setCommandVoiceState]=useState<'idle'|'listening'|'transcribing'>('idle')
+  const [commandRecordingSeconds,setCommandRecordingSeconds]=useState(0)
+  const commandRecorderRef=useRef<MediaRecorder|null>(null)
+  const commandStreamRef=useRef<MediaStream|null>(null)
+  const commandChunksRef=useRef<Blob[]>([])
+  const commandRecordingTimerRef=useRef<number|null>(null)
+  async function transcribeVoiceBlob(blob:Blob,label:'scene'|'command'){
+    if(!supabase)throw new Error('Dungeon voice services are unavailable.')
+    const extension=blob.type.includes('mp4')?'m4a':'webm'
+    const form=new FormData()
+    form.append('gameId',gameId)
+    form.append('audio',new File([blob],`dungeon-${label}.${extension}`,{type:blob.type||'audio/webm'}))
+
+    const {data,error}=await supabase.functions.invoke('transcribe-scene',{body:form})
+    if(error){
+      let detail=error.message
+      const response=(error as any).context as Response|undefined
+      try{
+        const payload=await response?.clone().json()
+        if(payload?.error)detail=String(payload.error)
+      }catch{}
+      throw new Error(detail)
+    }
+    if(data?.error)throw new Error(String(data.error))
+    const transcript=String(data?.text??'').trim()
+    if(!transcript)throw new Error('The Dungeon heard nothing useful. Try the recording again.')
+    return transcript
+  }
+
   async function judge(incidentText?:string){
     const incident=(incidentText??event).trim()
     if(!supabase||!incident)return
@@ -688,26 +717,7 @@ function Judge({gameId,characters,refresh}:{gameId:string;characters:Character[]
       })
       releaseVoiceStream()
 
-      const extension=blob.type.includes('mp4')?'m4a':'webm'
-      const form=new FormData()
-      form.append('gameId',gameId)
-      form.append('audio',new File([blob],`dungeon-scene.${extension}`,{type:blob.type||'audio/webm'}))
-
-      const {data,error}=await supabase.functions.invoke('transcribe-scene',{body:form})
-      if(error){
-        let detail=error.message
-        const response=(error as any).context as Response|undefined
-        try{
-          const payload=await response?.clone().json()
-          if(payload?.error)detail=String(payload.error)
-        }catch{}
-        throw new Error(detail)
-      }
-      if(data?.error)throw new Error(String(data.error))
-
-      const transcript=String(data?.text??'').trim()
-      if(!transcript)throw new Error('The Dungeon heard nothing useful. Try the recording again.')
-
+      const transcript=await transcribeVoiceBlob(blob,'scene')
       setEvent(transcript)
       setMsg('Scene transcribed. Rendering judgment…')
       await judge(transcript)
@@ -732,7 +742,7 @@ function Judge({gameId,characters,refresh}:{gameId:string;characters:Character[]
     setMsg('Voice capture canceled.')
   }
 
-  useEffect(()=>()=>releaseVoiceStream(),[])
+  useEffect(()=>()=>{releaseVoiceStream();releaseCommandVoiceStream()},[])
 
   async function apply(){
     if(!verdict)return
@@ -741,14 +751,15 @@ function Judge({gameId,characters,refresh}:{gameId:string;characters:Character[]
     catch(e){setMsg(e instanceof Error?e.message:'Could not apply verdict')}finally{setBusy(false)}
   }
 
-  async function interpretCommand(){
-    if(!supabase||!commandText.trim())return
+  async function interpretCommand(commandInput?:string){
+    const command=(commandInput??commandText).trim()
+    if(!supabase||!command)return
     setCommandBusy(true);setCommandMsg('');setCommandPreview(null)
     try{
       const {data,error}=await supabase.functions.invoke('dungeon-command',{
         body:{
           gameId,
-          command:commandText.trim(),
+          command,
           characters:characters.map(c=>{
             const bonus=equippedStatBonuses(c)
             return {
@@ -782,6 +793,94 @@ function Judge({gameId,characters,refresh}:{gameId:string;characters:Character[]
     }catch(e){setCommandMsg(e instanceof Error?e.message:'Could not interpret command')}finally{setCommandBusy(false)}
   }
 
+  function stopCommandVoiceTimer(){
+    if(commandRecordingTimerRef.current!==null){
+      window.clearInterval(commandRecordingTimerRef.current)
+      commandRecordingTimerRef.current=null
+    }
+  }
+
+  function releaseCommandVoiceStream(){
+    commandStreamRef.current?.getTracks().forEach(track=>track.stop())
+    commandStreamRef.current=null
+    commandRecorderRef.current=null
+    stopCommandVoiceTimer()
+  }
+
+  async function startCommandListening(){
+    if(!supabase||commandBusy||commandVoiceState!=='idle'||voiceState!=='idle')return
+    if(!navigator.mediaDevices?.getUserMedia||typeof MediaRecorder==='undefined'){
+      setCommandMsg('This browser does not support in-app voice capture. You can still type the GM command.')
+      return
+    }
+
+    setCommandMsg('')
+    setCommandPreview(null)
+    try{
+      const stream=await navigator.mediaDevices.getUserMedia({
+        audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},
+      })
+      const candidates=['audio/webm;codecs=opus','audio/webm','audio/mp4']
+      const mimeType=candidates.find(type=>MediaRecorder.isTypeSupported(type))||''
+      const recorder=mimeType?new MediaRecorder(stream,{mimeType}):new MediaRecorder(stream)
+
+      commandStreamRef.current=stream
+      commandRecorderRef.current=recorder
+      commandChunksRef.current=[]
+      recorder.ondataavailable=evt=>{if(evt.data.size>0)commandChunksRef.current.push(evt.data)}
+      recorder.onerror=()=>setCommandMsg('Microphone recording failed. Try again or use the text GM command.')
+      recorder.start()
+      setCommandRecordingSeconds(0)
+      setCommandVoiceState('listening')
+      commandRecordingTimerRef.current=window.setInterval(()=>setCommandRecordingSeconds(seconds=>seconds+1),1000)
+    }catch(e){
+      releaseCommandVoiceStream()
+      setCommandVoiceState('idle')
+      setCommandMsg(e instanceof Error?e.message:'Microphone access was not available.')
+    }
+  }
+
+  async function stopCommandAndInterpret(){
+    const recorder=commandRecorderRef.current
+    if(!supabase||!recorder||recorder.state==='inactive')return
+
+    setCommandVoiceState('transcribing')
+    stopCommandVoiceTimer()
+    setCommandMsg('Transcribing your order…')
+
+    try{
+      const blob=await new Promise<Blob>((resolve,reject)=>{
+        recorder.onstop=()=>resolve(new Blob(commandChunksRef.current,{type:recorder.mimeType||'audio/webm'}))
+        recorder.onerror=()=>reject(new Error('Microphone recording failed.'))
+        recorder.stop()
+      })
+      releaseCommandVoiceStream()
+
+      const transcript=await transcribeVoiceBlob(blob,'command')
+      setCommandText(transcript)
+      setCommandMsg('Order transcribed. Interpreting intent…')
+      await interpretCommand(transcript)
+    }catch(e){
+      setCommandMsg(e instanceof Error?e.message:'Could not transcribe the GM command.')
+    }finally{
+      releaseCommandVoiceStream()
+      setCommandVoiceState('idle')
+    }
+  }
+
+  function cancelCommandListening(){
+    const recorder=commandRecorderRef.current
+    if(recorder&&recorder.state!=='inactive'){
+      recorder.onstop=()=>{}
+      recorder.stop()
+    }
+    releaseCommandVoiceStream()
+    commandChunksRef.current=[]
+    setCommandRecordingSeconds(0)
+    setCommandVoiceState('idle')
+    setCommandMsg('Voice command canceled.')
+  }
+
   async function executeCommand(){
     if(!commandPreview||!commandText.trim())return
     if(!commandPreview.recipients.length){
@@ -813,7 +912,7 @@ function Judge({gameId,characters,refresh}:{gameId:string;characters:Character[]
         </div>
         <div className={`voice-status-orb ${voiceState}`}><Mic size={22}/></div>
       </div>
-      {voiceState==='idle'&&<button className="button primary voice-listen-button" disabled={busy} onClick={()=>void startSceneListening()}><Mic size={22}/>START LISTENING</button>}
+      {voiceState==='idle'&&<button className="button primary voice-listen-button" disabled={busy||commandVoiceState!=='idle'} onClick={()=>void startSceneListening()}><Mic size={22}/>START LISTENING</button>}
       {voiceState==='listening'&&<div className="voice-live-controls">
         <div className="voice-live-indicator"><span className="voice-live-dot"/><strong>LIVE</strong><span>{Math.floor(recordingSeconds/60)}:{String(recordingSeconds%60).padStart(2,'0')}</span></div>
         <button className="button primary voice-stop-judge" onClick={()=>void stopSceneAndJudge()}><Square size={18}/>STOP & RENDER JUDGMENT</button>
@@ -858,18 +957,39 @@ function Judge({gameId,characters,refresh}:{gameId:string;characters:Character[]
       <span className="command-badge">NO JUDGMENT</span>
     </div>
 
-    <div className="command-input-shell">
-      <div className="judge-input-label"><span>GM COMMAND</span><span>{commandText.length} CHARS</span></div>
-      <textarea
-        rows={4}
-        value={commandText}
-        onChange={e=>{setCommandText(e.target.value);setCommandPreview(null)}}
-        placeholder="Example: Award everyone a Bronze loot box containing a Healing Potion."
-      />
-      <button className="button command-interpret-button wide" disabled={commandBusy||!commandText.trim()} onClick={()=>void interpretCommand()}>
-        {commandBusy?'INTERPRETING ORDER…':'INTERPRET COMMAND'}
-      </button>
+    <div className="voice-judge-shell voice-command-shell">
+      <div className="voice-judge-header">
+        <div>
+          <div className="broadcast-kicker">PRIMARY INPUT // GM VOICE</div>
+          <h3>{commandVoiceState==='listening'?'THE DUNGEON IS TAKING ORDERS':commandVoiceState==='transcribing'?'DECODING MANAGEMENT':'SPEAK YOUR COMMAND'}</h3>
+          <div className="muted small">{commandVoiceState==='listening'?'Say what you want in normal language. The Dungeon will interpret the general intent when you stop.':'Faster than typing. Tell the Dungeon what you want to happen.'}</div>
+        </div>
+        <div className={`voice-status-orb ${commandVoiceState}`}><Mic size={22}/></div>
+      </div>
+      {commandVoiceState==='idle'&&<button className="button primary voice-listen-button" disabled={commandBusy||voiceState!=='idle'} onClick={()=>void startCommandListening()}><Mic size={22}/>START VOICE COMMAND</button>}
+      {commandVoiceState==='listening'&&<div className="voice-live-controls">
+        <div className="voice-live-indicator"><span className="voice-live-dot"/><strong>LIVE</strong><span>{Math.floor(commandRecordingSeconds/60)}:{String(commandRecordingSeconds%60).padStart(2,'0')}</span></div>
+        <button className="button primary voice-stop-judge" onClick={()=>void stopCommandAndInterpret()}><Square size={18}/>STOP & INTERPRET COMMAND</button>
+        <button className="button voice-cancel-button" onClick={cancelCommandListening}>Cancel</button>
+      </div>}
+      {commandVoiceState==='transcribing'&&<div className="voice-processing"><span className="voice-processing-pulse"/><strong>TRANSCRIBING ORDER…</strong><span>The Dungeon is translating management-speak into something useful.</span></div>}
     </div>
+
+    <details className="judge-text-fallback command-text-fallback" open={Boolean(commandText)}>
+      <summary>Text GM command / transcript</summary>
+      <div className="command-input-shell">
+        <div className="judge-input-label"><span>GM COMMAND</span><span>{commandText.length} CHARS</span></div>
+        <textarea
+          rows={4}
+          value={commandText}
+          onChange={e=>{setCommandText(e.target.value);setCommandPreview(null)}}
+          placeholder="Example: Give everyone a different Bronze item that fits their build."
+        />
+        <button className="button command-interpret-button wide" disabled={commandBusy||commandVoiceState!=='idle'||!commandText.trim()} onClick={()=>void interpretCommand()}>
+          {commandBusy?'INTERPRETING ORDER…':'INTERPRET COMMAND'}
+        </button>
+      </div>
+    </details>
 
     {commandPreview&&<div className="command-preview">
       <div className="command-preview-head">
