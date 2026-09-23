@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { ArrowLeftRight, Brain, Gift, Package, ScrollText, Settings, Sparkles, Trophy, Users } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { ArrowLeftRight, Brain, Gift, Mic, Package, ScrollText, Settings, Sparkles, Square, Trophy, Users } from 'lucide-react'
 import type { Character, DungeonVerdict, GearSlot, LootOpenResult, TradeRecord, TradeTarget, TradeableItem } from './lib/types'
 import { supabase, supabaseConfigured } from './lib/supabase'
 import {
@@ -600,11 +600,18 @@ function Judge({gameId,characters,refresh}:{gameId:string;characters:Character[]
   const [commandPreview,setCommandPreview]=useState<DungeonCommand|null>(null)
   const [commandBusy,setCommandBusy]=useState(false)
   const [commandMsg,setCommandMsg]=useState('')
-  async function judge(){
-    if(!supabase||!event.trim())return
+  const [voiceState,setVoiceState]=useState<'idle'|'listening'|'transcribing'>('idle')
+  const [recordingSeconds,setRecordingSeconds]=useState(0)
+  const recorderRef=useRef<MediaRecorder|null>(null)
+  const streamRef=useRef<MediaStream|null>(null)
+  const chunksRef=useRef<Blob[]>([])
+  const recordingTimerRef=useRef<number|null>(null)
+  async function judge(incidentText?:string){
+    const incident=(incidentText??event).trim()
+    if(!supabase||!incident)return
     setBusy(true);setMsg('')
     try{
-      const {data,error}=await supabase.functions.invoke('dungeon-judge',{body:{gameId,event,tone:'unhinged',frequency:'balanced',characters:characters.map(c=>{const bonus=equippedStatBonuses(c);return {id:c.id,name:c.name,level:c.level,stats:Object.fromEntries(stats.map(s=>[s,c.stats[s]+bonus[s]])),base_stats:c.stats,health:[c.currentHealth/4,c.maxHealth/4],skills:c.skills,gear:Object.values(c.gear).filter(Boolean)}})}})
+      const {data,error}=await supabase.functions.invoke('dungeon-judge',{body:{gameId,event:incident,tone:'unhinged',frequency:'balanced',characters:characters.map(c=>{const bonus=equippedStatBonuses(c);return {id:c.id,name:c.name,level:c.level,stats:Object.fromEntries(stats.map(s=>[s,c.stats[s]+bonus[s]])),base_stats:c.stats,health:[c.currentHealth/4,c.maxHealth/4],skills:c.skills,gear:Object.values(c.gear).filter(Boolean)}})}})
       if(error){
         let detail=error.message
         const response=(error as any).context as Response | undefined
@@ -618,6 +625,115 @@ function Judge({gameId,characters,refresh}:{gameId:string;characters:Character[]
       setVerdict(data)
     }catch(e){setMsg(e instanceof Error?e.message:'Judge failed')}finally{setBusy(false)}
   }
+  function stopVoiceTimer(){
+    if(recordingTimerRef.current!==null){
+      window.clearInterval(recordingTimerRef.current)
+      recordingTimerRef.current=null
+    }
+  }
+
+  function releaseVoiceStream(){
+    streamRef.current?.getTracks().forEach(track=>track.stop())
+    streamRef.current=null
+    recorderRef.current=null
+    stopVoiceTimer()
+  }
+
+  async function startSceneListening(){
+    if(!supabase||busy||voiceState!=='idle')return
+    if(!navigator.mediaDevices?.getUserMedia||typeof MediaRecorder==='undefined'){
+      setMsg('This browser does not support in-app voice capture. You can still type the incident report.')
+      return
+    }
+
+    setMsg('')
+    setVerdict(null)
+    try{
+      const stream=await navigator.mediaDevices.getUserMedia({
+        audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},
+      })
+      const candidates=['audio/webm;codecs=opus','audio/webm','audio/mp4']
+      const mimeType=candidates.find(type=>MediaRecorder.isTypeSupported(type))||''
+      const recorder=mimeType?new MediaRecorder(stream,{mimeType}):new MediaRecorder(stream)
+
+      streamRef.current=stream
+      recorderRef.current=recorder
+      chunksRef.current=[]
+      recorder.ondataavailable=evt=>{if(evt.data.size>0)chunksRef.current.push(evt.data)}
+      recorder.onerror=()=>setMsg('Microphone recording failed. Try again or use the text incident report.')
+      recorder.start()
+      setRecordingSeconds(0)
+      setVoiceState('listening')
+      recordingTimerRef.current=window.setInterval(()=>setRecordingSeconds(seconds=>seconds+1),1000)
+    }catch(e){
+      releaseVoiceStream()
+      setVoiceState('idle')
+      setMsg(e instanceof Error?e.message:'Microphone access was not available.')
+    }
+  }
+
+  async function stopSceneAndJudge(){
+    const recorder=recorderRef.current
+    if(!supabase||!recorder||recorder.state==='inactive')return
+
+    setVoiceState('transcribing')
+    stopVoiceTimer()
+    setMsg('Transcribing the scene…')
+
+    try{
+      const blob=await new Promise<Blob>((resolve,reject)=>{
+        recorder.onstop=()=>resolve(new Blob(chunksRef.current,{type:recorder.mimeType||'audio/webm'}))
+        recorder.onerror=()=>reject(new Error('Microphone recording failed.'))
+        recorder.stop()
+      })
+      releaseVoiceStream()
+
+      const extension=blob.type.includes('mp4')?'m4a':'webm'
+      const form=new FormData()
+      form.append('gameId',gameId)
+      form.append('audio',new File([blob],`dungeon-scene.${extension}`,{type:blob.type||'audio/webm'}))
+
+      const {data,error}=await supabase.functions.invoke('transcribe-scene',{body:form})
+      if(error){
+        let detail=error.message
+        const response=(error as any).context as Response|undefined
+        try{
+          const payload=await response?.clone().json()
+          if(payload?.error)detail=String(payload.error)
+        }catch{}
+        throw new Error(detail)
+      }
+      if(data?.error)throw new Error(String(data.error))
+
+      const transcript=String(data?.text??'').trim()
+      if(!transcript)throw new Error('The Dungeon heard nothing useful. Try the recording again.')
+
+      setEvent(transcript)
+      setMsg('Scene transcribed. Rendering judgment…')
+      await judge(transcript)
+    }catch(e){
+      setMsg(e instanceof Error?e.message:'Could not transcribe the scene.')
+    }finally{
+      releaseVoiceStream()
+      setVoiceState('idle')
+    }
+  }
+
+  function cancelSceneListening(){
+    const recorder=recorderRef.current
+    if(recorder&&recorder.state!=='inactive'){
+      recorder.onstop=()=>{}
+      recorder.stop()
+    }
+    releaseVoiceStream()
+    chunksRef.current=[]
+    setRecordingSeconds(0)
+    setVoiceState('idle')
+    setMsg('Voice capture canceled.')
+  }
+
+  useEffect(()=>()=>releaseVoiceStream(),[])
+
   async function apply(){
     if(!verdict)return
     setBusy(true)
@@ -685,14 +801,34 @@ function Judge({gameId,characters,refresh}:{gameId:string;characters:Character[]
   <section className="panel pad dungeon-judge-panel">
     <div className="judge-masthead">
       <div className="judge-warning">⚠</div>
-      <div><div className="broadcast-kicker">DUNGEON AI // EVENT REVIEW</div><h2>DUNGEON JUDGE</h2><div className="muted small">Describe the incident. The system will decide whether incompetence deserves recognition.</div></div>
+      <div><div className="broadcast-kicker">DUNGEON AI // EVENT REVIEW</div><h2>DUNGEON JUDGE</h2><div className="muted small">Let the Dungeon listen to the scene, then it will transcribe what happened and render judgment.</div></div>
       <span className="broadcast-light">AI ONLINE</span>
     </div>
-    <div className="judge-input-shell">
-      <div className="judge-input-label"><span>INCIDENT REPORT</span><span>{event.length} CHARS</span></div>
-      <textarea rows={6} value={event} onChange={e=>setEvent(e.target.value)} placeholder="Describe what the crawlers just did…"/>
-      <button className="button primary judge-button" disabled={busy||!event.trim()} onClick={()=>void judge()}>{busy?'ANALYZING BAD DECISIONS…':'SUBMIT TO THE DUNGEON'}</button>
+    <div className="voice-judge-shell">
+      <div className="voice-judge-header">
+        <div>
+          <div className="broadcast-kicker">PRIMARY INPUT // ROOM AUDIO</div>
+          <h3>{voiceState==='listening'?'THE DUNGEON IS LISTENING':voiceState==='transcribing'?'PROCESSING THE EVIDENCE':'LISTEN TO THE SCENE'}</h3>
+          <div className="muted small">{voiceState==='listening'?'Keep talking. When the moment is over, stop the recording and the Dungeon will judge what it heard.':'Capture the table conversation instead of typing a recap.'}</div>
+        </div>
+        <div className={`voice-status-orb ${voiceState}`}><Mic size={22}/></div>
+      </div>
+      {voiceState==='idle'&&<button className="button primary voice-listen-button" disabled={busy} onClick={()=>void startSceneListening()}><Mic size={22}/>START LISTENING</button>}
+      {voiceState==='listening'&&<div className="voice-live-controls">
+        <div className="voice-live-indicator"><span className="voice-live-dot"/><strong>LIVE</strong><span>{Math.floor(recordingSeconds/60)}:{String(recordingSeconds%60).padStart(2,'0')}</span></div>
+        <button className="button primary voice-stop-judge" onClick={()=>void stopSceneAndJudge()}><Square size={18}/>STOP & RENDER JUDGMENT</button>
+        <button className="button voice-cancel-button" onClick={cancelSceneListening}>Cancel</button>
+      </div>}
+      {voiceState==='transcribing'&&<div className="voice-processing"><span className="voice-processing-pulse"/><strong>TRANSCRIBING SCENE…</strong><span>The Dungeon is preparing an opinion nobody asked for.</span></div>}
     </div>
+    <details className="judge-text-fallback" open={Boolean(event)}>
+      <summary>Text incident report / transcript</summary>
+      <div className="judge-input-shell">
+        <div className="judge-input-label"><span>INCIDENT REPORT</span><span>{event.length} CHARS</span></div>
+        <textarea rows={6} value={event} onChange={e=>setEvent(e.target.value)} placeholder="Type a recap here, or use voice above…"/>
+        <button className="button judge-button" disabled={busy||voiceState!=='idle'||!event.trim()} onClick={()=>void judge()}>{busy?'ANALYZING BAD DECISIONS…':'JUDGE THIS REPORT'}</button>
+      </div>
+    </details>
     {verdict&&<div className={`dungeon-verdict ${verdict.should_reward?'verdict-rewarded':'verdict-denied'}`}>
       <div className="broadcast-scanline"/>
       <div className="verdict-status">{verdict.should_reward?'EVENT WORTHY':'EVENT REVIEWED'}</div>
