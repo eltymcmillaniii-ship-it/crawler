@@ -2609,3 +2609,5 @@ select:disabled,input:disabled,textarea:disabled{opacity:.55}
 @media(max-width:720px){
   .command-individual-grid{grid-template-columns:1fr}
 }
+
+/* deployment refresh: 2026-09-23 */
