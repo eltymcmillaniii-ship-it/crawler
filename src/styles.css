@@ -2611,3 +2611,170 @@ select:disabled,input:disabled,textarea:disabled{opacity:.55}
 }
 
 /* deployment refresh: 2026-09-23 */
+
+
+/* v1.10 — voice-first Dungeon Judge */
+.voice-judge-shell{
+  margin:14px 0;
+  padding:16px;
+  border:1px solid #5b4020;
+  border-left:4px solid var(--warning);
+  background:
+    radial-gradient(circle at 90% 0,rgba(227,166,41,.08),transparent 22rem),
+    #111311;
+}
+.voice-judge-header{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:14px;
+}
+.voice-judge-header h3{
+  margin:4px 0 5px;
+  font-family:Impact,"Arial Narrow",sans-serif;
+  font-size:1.5rem;
+  letter-spacing:.045em;
+  text-transform:uppercase;
+  color:#f3e6d3;
+}
+.voice-status-orb{
+  display:grid;
+  place-items:center;
+  flex:none;
+  width:48px;
+  height:48px;
+  border:1px solid #5a4a2a;
+  border-radius:50%;
+  background:#17150f;
+  color:#d9b85e;
+}
+.voice-status-orb.listening{
+  border-color:#9b2e29;
+  background:#25100f;
+  color:#ff635d;
+  box-shadow:0 0 0 6px rgba(226,56,47,.08);
+  animation:dungeonPulse 1s ease-in-out infinite;
+}
+.voice-status-orb.transcribing{
+  color:#f2c85d;
+  animation:dungeonPulse .7s ease-in-out infinite;
+}
+.voice-listen-button{
+  width:100%;
+  min-height:58px;
+  margin-top:14px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:9px;
+  font-size:.9rem;
+  letter-spacing:.07em;
+}
+.voice-live-controls{
+  display:grid;
+  grid-template-columns:auto 1fr auto;
+  gap:9px;
+  align-items:center;
+  margin-top:14px;
+}
+.voice-live-indicator{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  min-width:116px;
+  padding:10px;
+  border:1px solid #572824;
+  background:#1c0f0e;
+  color:#e9c4bf;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:.68rem;
+}
+.voice-live-dot{
+  width:8px;
+  height:8px;
+  border-radius:50%;
+  background:#ef443d;
+  box-shadow:0 0 8px rgba(239,68,61,.8);
+  animation:dungeonPulse .7s ease-in-out infinite;
+}
+.voice-stop-judge{
+  min-height:46px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+}
+.voice-cancel-button{
+  min-height:46px;
+}
+.voice-processing{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  margin-top:14px;
+  padding:12px;
+  border:1px solid #4a4328;
+  background:#18160f;
+  color:#cfc3a8;
+  font-size:.72rem;
+}
+.voice-processing-pulse{
+  width:10px;
+  height:10px;
+  flex:none;
+  border-radius:50%;
+  background:var(--warning);
+  animation:dungeonPulse .65s ease-in-out infinite;
+}
+.voice-processing>strong{
+  color:#e9c65e;
+  white-space:nowrap;
+}
+.judge-text-fallback{
+  margin-top:10px;
+  border:1px solid #373b3e;
+  background:#0f1113;
+}
+.judge-text-fallback>summary{
+  position:relative;
+  padding:10px 32px 10px 11px;
+  cursor:pointer;
+  list-style:none;
+  color:#918b82;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:.62rem;
+  font-weight:900;
+  letter-spacing:.055em;
+  text-transform:uppercase;
+}
+.judge-text-fallback>summary::-webkit-details-marker{display:none}
+.judge-text-fallback>summary:after{
+  content:"+";
+  position:absolute;
+  right:11px;
+  top:50%;
+  transform:translateY(-50%);
+  color:var(--warning);
+  font-size:1rem;
+}
+.judge-text-fallback[open]>summary{
+  border-bottom:1px solid #34383b;
+  color:#c8bfb2;
+}
+.judge-text-fallback[open]>summary:after{content:"−"}
+.judge-text-fallback .judge-input-shell{
+  margin:0;
+  border:0;
+}
+@media(max-width:700px){
+  .voice-live-controls{
+    grid-template-columns:1fr;
+  }
+  .voice-live-indicator{
+    justify-content:center;
+  }
+  .voice-processing{
+    align-items:flex-start;
+    flex-wrap:wrap;
+  }
+}
