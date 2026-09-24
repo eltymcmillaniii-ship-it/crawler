@@ -33,7 +33,7 @@ export const demoCharacters: Character[] = [
       item({ name: 'Goblin Crown', rarity: 'B', type: 'Armor', slot: 'Head', effect: '+1 Charisma when dealing with goblins.' }),
       item({ name: 'Rat Whistle', rarity: 'S', type: 'Utility', effect: 'Once per session, summon a nearby rat. No guarantees.' }),
     ],
-    boxes: [{ id: 'box-e1', name: "Bronze Asshole's Box", rarity: 'B' }],
+    boxes: [{ id: 'box-e1', name: "Bronze Asshole's Box", rarity: 'B', boxType: 'standard' }],
     achievements: [{ id: 'a-e1', name: 'Pest Control', commentary: 'Killed your first dungeon creature.' }],
   },
   {
@@ -52,7 +52,7 @@ export const demoCharacters: Character[] = [
     skills: [{ name: 'Mechanical Repair', rank: 1 }, { name: 'Blunt Weapons', rank: 1 }], techniques: ['Shoulder Check'], perks: ['Pack Mule'],
     gear: { ...emptyGear(), 'Weapon 1': item({ name: 'Trollbone Hammer', rarity: 'G', type: 'Weapon', slot: 'Weapon 1', effect: '❤️❤️❤️ · Push on 10+.' }) },
     inventory: [item({ name: 'Dungeon Chalk', rarity: 'B', type: 'Utility', effect: 'Marks glow for 24 hours.' })],
-    boxes: [{ id: 'box-k1', name: 'Silver Adventurer Box', rarity: 'S' }],
+    boxes: [{ id: 'box-k1', name: 'Silver Adventurer Box', rarity: 'S', boxType: 'standard' }],
     achievements: [{ id: 'a-k1', name: 'Human Ammunition', commentary: 'Used another crawler as a projectile.' }],
   },
 ]
