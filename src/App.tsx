@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowLeftRight, Brain, Gift, Mic, Package, ScrollText, Settings, Sparkles, Square, Trophy, Users } from 'lucide-react'
-import type { Character, DungeonVerdict, GearSlot, LootOpenResult, TradeRecord, TradeTarget, TradeableItem } from './lib/types'
+import type { Character, DungeonVerdict, GearSlot, LootBoxType, LootOpenResult, Rarity, TradeRecord, TradeTarget, TradeableItem } from './lib/types'
 import { supabase, supabaseConfigured } from './lib/supabase'
 import {
-  acceptTrade, applyDungeonCommand, applyDungeonVerdict, cancelTrade, completeCharacterSetup, createGame, createGmLogin, createTrade, declineTrade, deleteGame, ensureAnonymousUser, joinGame,
-  equipCharacterItem, gmRenameItem, listMyGames, listMyTrades, listTradeableItems, listTradeTargets, loadCharacters, loadDungeonStory, loadPartyMembers, openLootBox, persistCharacterDiff, recoverCrawler, renameCharacter, signInGm, signOutUser, subscribeToGame, unequipCharacterItem, updateGameSettings, uploadCharacterPortrait, useCharacterItem,
+  acceptTrade, applyDungeonCommand, applyDungeonVerdict, cancelTrade, completeCharacterSetup, createGame, createGmLogin, createTrade, declineTrade, deleteGame, ensureAnonymousUser, grantQuickLoot, joinGame,
+  equipCharacterItem, gmRenameItem, listMyGames, listMyTrades, listTradeableItems, listTradeTargets, loadCharacters, loadDungeonStory, loadPartyMembers, openLootBox, persistCharacterDiff, recoverCrawler, renameCharacter, signInGm, signOutUser, subscribeToGame, undoQuickLoot, unequipCharacterItem, updateGameSettings, uploadCharacterPortrait, useCharacterItem,
 } from './lib/live'
 import type { DungeonStoryEvent, GameSummary, PartyMember } from './lib/live'
 
@@ -591,7 +591,24 @@ type DungeonCommand = {
   source?: string
 }
 
-function Judge({gameId,characters,refresh}:{gameId:string;characters:Character[];refresh:()=>Promise<void>}) {
+type QuickLootChoice = {
+  key: string
+  label: string
+  detail: string
+  boxType: LootBoxType
+  rarity?: Rarity
+}
+
+const quickLootChoices:QuickLootChoice[]=[
+  {key:'bronze',label:'BRONZE',detail:'Routine reward',boxType:'standard',rarity:'B'},
+  {key:'silver',label:'SILVER',detail:'Meaningful keeper',boxType:'standard',rarity:'S'},
+  {key:'gold',label:'GOLD',detail:'Character-shaping',boxType:'standard',rarity:'G'},
+  {key:'healing',label:'HEALING',detail:'Emergency supplies',boxType:'healing',rarity:'B'},
+  {key:'mystery',label:'MYSTERY',detail:'Dungeon chooses rarity',boxType:'mystery'},
+  {key:'boss',label:'BOSS',detail:'Major encounter reward',boxType:'boss',rarity:'G'},
+]
+
+function Judge({gameId,characters,selectedCrawlerId,refresh}:{gameId:string;characters:Character[];selectedCrawlerId:string;refresh:()=>Promise<void>}) {
   const [event,setEvent]=useState('')
   const [verdict,setVerdict]=useState<DungeonVerdict|null>(null)
   const [busy,setBusy]=useState(false)
@@ -612,6 +629,11 @@ function Judge({gameId,characters,refresh}:{gameId:string;characters:Character[]
   const commandStreamRef=useRef<MediaStream|null>(null)
   const commandChunksRef=useRef<Blob[]>([])
   const commandRecordingTimerRef=useRef<number|null>(null)
+  const [quickRecipients,setQuickRecipients]=useState<string[]>([])
+  const [quickBusy,setQuickBusy]=useState(false)
+  const [quickMsg,setQuickMsg]=useState('')
+  const [quickUndo,setQuickUndo]=useState<{ids:string[];label:string}|null>(null)
+  const quickUndoTimerRef=useRef<number|null>(null)
   async function transcribeVoiceBlob(blob:Blob,label:'scene'|'command'){
     if(!supabase)throw new Error('Dungeon voice services are unavailable.')
     const extension=blob.type.includes('mp4')?'m4a':'webm'
@@ -742,7 +764,16 @@ function Judge({gameId,characters,refresh}:{gameId:string;characters:Character[]
     setMsg('Voice capture canceled.')
   }
 
-  useEffect(()=>()=>{releaseVoiceStream();releaseCommandVoiceStream()},[])
+  useEffect(()=>()=>{releaseVoiceStream();releaseCommandVoiceStream();if(quickUndoTimerRef.current!==null)window.clearTimeout(quickUndoTimerRef.current)},[])
+  useEffect(()=>{
+    const valid=new Set(characters.map(c=>c.id))
+    setQuickRecipients(current=>{
+      const kept=current.filter(id=>valid.has(id))
+      if(kept.length)return kept
+      if(selectedCrawlerId&&valid.has(selectedCrawlerId))return [selectedCrawlerId]
+      return characters[0]?[characters[0].id]:[]
+    })
+  },[selectedCrawlerId,characters.map(c=>c.id).join('|')])
 
   async function apply(){
     if(!verdict)return
@@ -879,6 +910,57 @@ function Judge({gameId,characters,refresh}:{gameId:string;characters:Character[]
     setCommandRecordingSeconds(0)
     setCommandVoiceState('idle')
     setCommandMsg('Voice command canceled.')
+  }
+
+  function toggleQuickRecipient(characterId:string){
+    setQuickRecipients(current=>current.includes(characterId)
+      ? current.filter(id=>id!==characterId)
+      : [...current,characterId])
+    setQuickMsg('')
+  }
+
+  function selectCurrentCrawler(){
+    if(selectedCrawlerId)setQuickRecipients([selectedCrawlerId])
+    else if(characters[0])setQuickRecipients([characters[0].id])
+  }
+
+  function selectEveryone(){
+    setQuickRecipients(characters.map(c=>c.id))
+  }
+
+  async function awardQuickLoot(choice:QuickLootChoice){
+    if(!quickRecipients.length){setQuickMsg('Choose at least one crawler first.');return}
+    setQuickBusy(true);setQuickMsg('')
+    try{
+      const ids=await grantQuickLoot(gameId,quickRecipients,choice.boxType,choice.rarity)
+      await refresh()
+      const recipientNames=quickRecipients.map(id=>characters.find(c=>c.id===id)?.name??'Crawler')
+      const who=recipientNames.length===characters.length&&characters.length>1?'EVERYONE':recipientNames.join(', ')
+      setQuickMsg(choice.label+' BOX → '+who)
+      setQuickUndo({ids,label:choice.label})
+      if(quickUndoTimerRef.current!==null)window.clearTimeout(quickUndoTimerRef.current)
+      quickUndoTimerRef.current=window.setTimeout(()=>setQuickUndo(null),8000)
+    }catch(e){
+      setQuickMsg(e instanceof Error?e.message:'Could not award quick loot')
+    }finally{
+      setQuickBusy(false)
+    }
+  }
+
+  async function undoLastQuickLoot(){
+    if(!quickUndo)return
+    setQuickBusy(true)
+    try{
+      const count=await undoQuickLoot(gameId,quickUndo.ids)
+      if(quickUndoTimerRef.current!==null)window.clearTimeout(quickUndoTimerRef.current)
+      setQuickUndo(null)
+      await refresh()
+      setQuickMsg('Undid '+count+' quick loot box'+(count===1?'':'es')+'.')
+    }catch(e){
+      setQuickMsg(e instanceof Error?e.message:'Could not undo quick loot')
+    }finally{
+      setQuickBusy(false)
+    }
   }
 
   async function executeCommand(){
@@ -1051,6 +1133,53 @@ function Judge({gameId,characters,refresh}:{gameId:string;characters:Character[]
     </div>}
 
     {commandMsg&&<div className="status-message broadcast-status">{commandMsg}</div>}
+  </section>
+
+  <section className="panel pad quick-loot-panel">
+    <div className="quick-loot-masthead">
+      <div>
+        <div className="broadcast-kicker">GM SHORTCUT // ZERO INTERPRETATION</div>
+        <h2>QUICK LOOT</h2>
+        <p className="muted small">Pick who gets it, hit a box, keep the game moving. Contents are generated only when the crawler opens the box.</p>
+      </div>
+      <span className="quick-loot-speed">1–2 TAPS</span>
+    </div>
+
+    <div className="quick-recipient-section">
+      <div className="judge-input-label"><span>WHO GETS IT?</span><span>{quickRecipients.length} SELECTED</span></div>
+      <div className="quick-recipient-presets">
+        <button className="button quick-recipient-preset" disabled={!selectedCrawlerId} onClick={selectCurrentCrawler}>SELECTED CRAWLER{selectedCrawlerId?' · '+(characters.find(c=>c.id===selectedCrawlerId)?.name??''):''}</button>
+        <button className={'button quick-recipient-preset '+(quickRecipients.length===characters.length&&characters.length?'active':'')} disabled={!characters.length} onClick={selectEveryone}>EVERYONE</button>
+      </div>
+      <div className="quick-recipient-grid">
+        {characters.map(character=><button
+          className={'quick-crawler-chip '+(quickRecipients.includes(character.id)?'selected':'')}
+          key={character.id}
+          onClick={()=>toggleQuickRecipient(character.id)}
+        ><span>{character.name}</span><small>LVL {character.level}</small></button>)}
+      </div>
+    </div>
+
+    <div className="quick-box-section">
+      <div className="judge-input-label"><span>AWARD BOX</span><span>NO CONFIRMATION · UNDO AVAILABLE</span></div>
+      <div className="quick-box-grid">
+        {quickLootChoices.map(choice=><button
+          className={'quick-box-button quick-box-'+choice.key}
+          key={choice.key}
+          disabled={quickBusy||!quickRecipients.length}
+          onClick={()=>void awardQuickLoot(choice)}
+        >
+          <span className="quick-box-icon">🎁</span>
+          <strong>{choice.label}</strong>
+          <small>{choice.detail}</small>
+        </button>)}
+      </div>
+    </div>
+
+    {(quickMsg||quickUndo)&&<div className="quick-loot-result">
+      <span>{quickMsg}</span>
+      {quickUndo&&<button className="button quick-undo-button" disabled={quickBusy} onClick={()=>void undoLastQuickLoot()}>UNDO</button>}
+    </div>}
   </section>
   </>
 }
@@ -1276,7 +1405,7 @@ function GM({game,characters,refresh}:{game:GameSummary;characters:Character[];r
   return <>
     <nav className="tabs"><button className={`button ${tab==='profiles'?'primary':''}`} onClick={()=>setTab('profiles')}><Users size={16}/>Party Profiles</button><button className={`button ${tab==='judge'?'primary':''}`} onClick={()=>setTab('judge')}><Sparkles size={16}/>Dungeon Judge</button><button className={`button ${tab==='story'?'primary':''}`} onClick={()=>setTab('story')}><ScrollText size={16}/>Story Log</button><button className={`button ${tab==='settings'?'primary':''}`} onClick={()=>setTab('settings')}><Settings size={16}/>Game Settings</button></nav>
     {msg&&<div className="status-message">{msg}</div>}
-    {tab==='judge'&&<Judge gameId={gameId} characters={characters} refresh={refresh}/>}
+    {tab==='judge'&&<Judge gameId={gameId} characters={characters} selectedCrawlerId={current?.id??''} refresh={refresh}/>} 
     {tab==='story'&&<StoryLog gameId={gameId} characters={characters}/>}
     {tab==='settings'&&<section className="panel pad game-settings-panel">
       <div className="settings-hero">
