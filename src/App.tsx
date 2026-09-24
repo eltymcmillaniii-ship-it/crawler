@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { EncounterPanel } from './EncounterPanel'
 import { ArrowLeftRight, Brain, Gift, Mic, Package, ScrollText, Settings, Sparkles, Square, Trophy, Users } from 'lucide-react'
 import type { Character, DungeonVerdict, GearSlot, LootBoxType, LootOpenResult, Rarity, TradeRecord, TradeTarget, TradeableItem } from './lib/types'
 import { supabase, supabaseConfigured } from './lib/supabase'
@@ -1056,6 +1057,8 @@ function Judge({gameId,characters,selectedCrawlerId,refresh}:{gameId:string;char
     {msg&&<div className="status-message broadcast-status">{msg}</div>}
   </section>
 
+  <div className="encounter-command-grid">
+  <EncounterPanel key={gameId} gameId={gameId}/>
   <section className="panel pad dungeon-command-panel">
     <div className="command-masthead">
       <div>
@@ -1162,6 +1165,7 @@ function Judge({gameId,characters,selectedCrawlerId,refresh}:{gameId:string;char
     {commandMsg&&<div className="status-message broadcast-status">{commandMsg}</div>}
   </section>
 
+  </div>
   <section className="panel pad quick-loot-panel">
     <div className="quick-loot-masthead">
       <div>
