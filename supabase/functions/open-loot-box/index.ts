@@ -84,7 +84,19 @@ function randomIndex(length: number) {
   return bytes[0] % length
 }
 
-function offlineReward(rarity: string, existingNames: Set<string>): Reward {
+function offlineReward(rarity: string, existingNames: Set<string>, boxType = 'standard'): Reward {
+  if (boxType === 'healing') {
+    return {
+      name:'Minor Healing Potion',
+      item_type:'Consumable',
+      slot:null,
+      effect:'Restore 0.25 HP.',
+      quirk:'The label says “clinically adequate,” which is somehow less reassuring.',
+      opening_message:'MEDICAL SUPPLIES! The Dungeon has reluctantly approved continued biological function.',
+      stat_bonuses:{Strength:0,Dexterity:0,Intelligence:0,Constitution:0,Charisma:0},
+    }
+  }
+
   const pool = rarity === 'G' ? gold : rarity === 'S' ? silver : bronze
   const fresh = pool.filter(item => !existingNames.has(item.name.toLowerCase()))
   const choices = fresh.length ? fresh : pool
@@ -108,7 +120,7 @@ Deno.serve(async (req) => {
 
     const { data: box, error: boxError } = await caller
       .from('loot_boxes')
-      .select('id,character_id,name,rarity,opened_at,preset_reward')
+      .select('id,character_id,name,rarity,box_type,opened_at,preset_reward')
       .eq('id', boxId)
       .maybeSingle()
     if (boxError) throw boxError
@@ -140,7 +152,7 @@ Deno.serve(async (req) => {
     )
 
     const context = {
-      loot_box: { name: box.name, rarity: box.rarity },
+      loot_box: { name: box.name, rarity: box.rarity, box_type: box.box_type ?? 'standard' },
       crawler: {
         name: character.name,
         background: character.background,
@@ -185,7 +197,18 @@ Deno.serve(async (req) => {
         const openai = new OpenAI({ apiKey })
         const response = await openai.responses.create({
           model: Deno.env.get('OPENAI_MODEL') || 'gpt-5.6-luna',
-          instructions: `You are the Dungeon AI generating the contents of a tabletop RPG loot box. The box rarity is fixed and MUST NOT be upgraded. Generate exactly one surprising, funny, useful item that fits the crawler without simply duplicating their existing gear. Bronze items are useful, situational, consumable, or mildly weird. Silver items are meaningful keeper items with a strong option or once-per-combat/session ability. Gold items are rare, character-defining, and may bend one normal rule, but should not trivialize the game. Prefer new tactical behavior over raw stacking bonuses, but items may boost core stats while equipped. Always return stat_bonuses for Strength, Dexterity, Intelligence, Constitution, and Charisma, using 0 for stats not boosted. Keep bonuses modest by rarity: Bronze usually 0-1 total points, Silver 1-2, Gold 2-3 unless a rare effect clearly warrants more. Stat bonuses only matter when the item is equipped, so consumables and non-equippable utility items should normally have all zeroes. Extra attacks should be limited or conditional. Keep effects short enough to fit on an item card. Quirks can be absurd and flavorful but should not make the item unusable. opening_message is a short Dungeon AI reveal line, sarcastic and entertaining. Never provide real-world dangerous instructions.`,
+          instructions: `You are the Dungeon AI generating the contents of a tabletop RPG loot box. The box rarity is fixed and MUST NOT be upgraded. Generate exactly one surprising, funny, useful item that fits the crawler without simply duplicating their existing gear.
+
+BOX TYPES:
+- standard: normal Dungeon loot for the fixed rarity.
+- healing: MUST produce a Consumable with slot null whose name clearly includes "Healing" and whose effect restores health. For a Bronze healing box, prefer a Minor Healing Potion that restores exactly 0.25 HP. Structured stat_bonuses must all be 0.
+- mystery: lean stranger and less predictable than normal loot while still matching the fixed rarity and remaining useful.
+- boss: this is a major encounter reward. Make it dramatic, memorable, and character-defining while respecting the fixed rarity and avoiding game-breaking effects.
+
+RARITY:
+Bronze items are useful, situational, consumable, or mildly weird. Silver items are meaningful keeper items with a strong option or once-per-combat/session ability. Gold items are rare, character-defining, and may bend one normal rule, but should not trivialize the game.
+
+Prefer new tactical behavior over raw stacking bonuses, but items may boost core stats while equipped. Always return stat_bonuses for Strength, Dexterity, Intelligence, Constitution, and Charisma, using 0 for stats not boosted. Keep bonuses modest by rarity: Bronze usually 0-1 total points, Silver 1-2, Gold 2-3 unless a rare effect clearly warrants more. Stat bonuses only matter when the item is equipped, so consumables and non-equippable utility items should normally have all zeroes. Extra attacks should be limited or conditional. Keep effects short enough to fit on an item card. Quirks can be absurd and flavorful but should not make the item unusable. opening_message is a short Dungeon AI reveal line, sarcastic and entertaining. Never provide real-world dangerous instructions.`,
           input: JSON.stringify(context),
           text: { format: { type: 'json_schema', name: 'loot_box_reward', strict: true, schema } },
         })
@@ -193,10 +216,10 @@ Deno.serve(async (req) => {
         source = 'ai'
       } catch (aiError) {
         console.error('Loot box AI error:', aiError instanceof Error ? aiError.message : String(aiError))
-        reward = offlineReward(String(box.rarity), existingNames)
+        reward = offlineReward(String(box.rarity), existingNames, String(box.box_type ?? 'standard'))
       }
     } else {
-      reward = offlineReward(String(box.rarity), existingNames)
+      reward = offlineReward(String(box.rarity), existingNames, String(box.box_type ?? 'standard'))
     }
 
     const service = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
