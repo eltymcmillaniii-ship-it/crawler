@@ -2946,3 +2946,21 @@ select:disabled,input:disabled,textarea:disabled{opacity:.55}
   .quick-box-grid{grid-template-columns:1fr}
   .quick-loot-result{align-items:stretch;flex-direction:column}
 }
+
+/* The reveal is a presentation layer; the reward is granted by openLootBox. */
+.loot-ceremony-backdrop{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:18px;background:rgba(3,4,7,.91);backdrop-filter:blur(9px)}
+.loot-ceremony{--ceremony-color:#b68250;position:relative;width:min(100%,620px);max-height:calc(100dvh - 36px);overflow:auto;padding:clamp(24px,5vw,44px);text-align:center;border:1px solid var(--ceremony-color);border-radius:18px;background:radial-gradient(circle at 50% 28%,color-mix(in srgb,var(--ceremony-color) 25%,transparent),transparent 55%),#111316;box-shadow:0 0 90px color-mix(in srgb,var(--ceremony-color) 22%,transparent),0 28px 80px #000;animation:ceremonyEnter .35s ease-out}
+.rarity-ceremony-S{--ceremony-color:#c2d4e0}.rarity-ceremony-G{--ceremony-color:#ffca4d}
+.loot-ceremony-kicker,.loot-ceremony-rarity{color:var(--ceremony-color);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.8rem;font-weight:900;letter-spacing:.16em}
+.loot-ceremony-box{display:grid;place-items:center;width:142px;height:142px;margin:26px auto;border:2px solid var(--ceremony-color);border-radius:22px;color:var(--ceremony-color);background:#151617;box-shadow:0 0 40px color-mix(in srgb,var(--ceremony-color) 26%,transparent);animation:ceremonyFloat 1.8s ease-in-out infinite alternate}
+.loot-ceremony h2{font-family:Impact,"Arial Narrow",sans-serif;font-size:clamp(2rem,8vw,4rem);line-height:1.05;letter-spacing:.03em;text-transform:uppercase;overflow-wrap:anywhere}
+.loot-ceremony p{line-height:1.5;color:#e0d9ce}
+.loot-ceremony .button{margin-top:20px;min-width:150px}
+.loot-ceremony-meter{height:4px;margin:24px auto 0;max-width:260px;background:linear-gradient(90deg,transparent,var(--ceremony-color),transparent);animation:ceremonyPulse 1s ease-in-out infinite alternate}
+.loot-ceremony-effect{display:grid;gap:8px;margin:18px 0;padding:16px;text-align:left;border:1px solid var(--ceremony-color);background:#101112;line-height:1.5}
+.loot-ceremony-effect span{font-size:.85rem;color:#c4bdb1}
+.loot-ceremony-announcement{font-style:italic}
+@keyframes ceremonyEnter{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:scale(1)}}
+@keyframes ceremonyFloat{to{transform:translateY(-8px) rotate(3deg)}}
+@keyframes ceremonyPulse{from{opacity:.3;transform:scaleX(.4)}to{opacity:1;transform:scaleX(1)}}
+@media(prefers-reduced-motion:reduce){.loot-ceremony,.loot-ceremony-box,.loot-ceremony-meter{animation:none}}

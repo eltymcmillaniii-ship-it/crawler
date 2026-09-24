@@ -201,6 +201,8 @@ function Player({gameId,character,refresh}:{gameId:string;character:Character;re
   const [busy,setBusy]=useState(false)
   const [uploadingPortrait,setUploadingPortrait]=useState(false)
   const [lootReveal,setLootReveal]=useState<LootOpenResult|null>(null)
+  const [lootStage,setLootStage]=useState<'idle'|'opening'|'ready'|'revealed'>('idle')
+  const [openingBoxName,setOpeningBoxName]=useState('')
   const [party,setParty]=useState<PartyMember[]>([])
   const [partyLoading,setPartyLoading]=useState(false)
   const [tradeTargets,setTradeTargets]=useState<TradeTarget[]>([])
@@ -213,6 +215,19 @@ function Player({gameId,character,refresh}:{gameId:string;character:Character;re
   const [tradeLoading,setTradeLoading]=useState(false)
   const gearStatBonuses=equippedStatBonuses(character)
   const totalConstitution=character.stats.Constitution+gearStatBonuses.Constitution
+  useEffect(()=>{
+    if(lootStage!=='ready')return
+    const timer=window.setTimeout(()=>setLootStage('revealed'),1100)
+    return ()=>window.clearTimeout(timer)
+  },[lootStage])
+  useEffect(()=>{
+    if(lootStage==='idle')return
+    const onKey=(event:KeyboardEvent)=>{
+      if(event.key==='Escape'&&lootStage!=='opening')setLootStage('idle')
+    }
+    window.addEventListener('keydown',onKey)
+    return ()=>window.removeEventListener('keydown',onKey)
+  },[lootStage])
 
   async function openParty(){
     setTab('party')
@@ -340,11 +355,14 @@ function Player({gameId,character,refresh}:{gameId:string;character:Character;re
   }
   async function openBox(id:string){
     setBusy(true);setMsg('');setLootReveal(null)
+    setOpeningBoxName(character.boxes.find(box=>box.id===id)?.name??'Loot Box')
+    setLootStage('opening')
     try{
       const r=await openLootBox(id)
       setLootReveal(r)
-      await refresh()
-    }catch(e){setMsg(e instanceof Error?e.message:'Box failed to open')}finally{setBusy(false)}
+      setLootStage('ready')
+      try{await refresh()}catch{setMsg('Reward granted. Refresh to update your inventory.')}
+    }catch(e){setLootStage('idle');setMsg(e instanceof Error?e.message:'Box failed to open')}finally{setBusy(false)}
   }
   async function renameSelf(){
     const next=window.prompt('Rename your crawler',character.name)?.trim()
@@ -383,6 +401,15 @@ function Player({gameId,character,refresh}:{gameId:string;character:Character;re
     }catch(e){setMsg(e instanceof Error?e.message:'Could not use item')}finally{setBusy(false)}
   }
   return <>
+    {lootStage!=='idle'&&<div className="loot-ceremony-backdrop" role="presentation">
+      <section className={`loot-ceremony rarity-ceremony-${lootReveal?.rarity??'B'}`} role="dialog" aria-modal="true" aria-label="Loot box opening" aria-live="polite">
+        <div className="loot-ceremony-kicker">DUNGEON REWARD SYSTEM</div>
+        <div className="loot-ceremony-box" aria-hidden="true"><Gift size={68} strokeWidth={1.4}/></div>
+        {lootStage==='opening'?<><h2>THE DUNGEON IS DECIDING</h2><p>{openingBoxName} is opening…</p><div className="loot-ceremony-meter"/></>:
+          lootStage==='ready'?<><h2>REWARD AUTHORIZED</h2><p>The Dungeon has made its decision.</p><button className="button" onClick={()=>setLootStage('revealed')}>Reveal now</button></>:
+          lootReveal&&<><div className="loot-ceremony-rarity">{lootReveal.rarity==='B'?'BRONZE':lootReveal.rarity==='S'?'SILVER':'GOLD'} REWARD</div><h2>{lootReveal.item.name}</h2><p className="loot-ceremony-announcement">{lootReveal.openingMessage}</p><div className="loot-ceremony-effect"><strong>{lootReveal.item.effect}</strong>{lootReveal.item.quirk&&<span>AI NOTE: {lootReveal.item.quirk}</span>}{statBonusSummary(lootReveal.item.statBonuses)&&<span>EQUIPPED BONUS · {statBonusSummary(lootReveal.item.statBonuses)}</span>}</div><button className="button primary" onClick={()=>setLootStage('idle')}>Claim reward</button></>}
+      </section>
+    </div>}
     <section className="panel pad player-header"><div><div className="player-name-row"><h2>{character.name} <span className="pill">Level {character.level}</span></h2><button className="button compact-action" disabled={busy} onClick={()=>void renameSelf()}>Rename</button></div><div className="muted">{character.background}</div></div><div><div className="eyebrow">Health</div><HealthBar c={character.currentHealth} m={character.maxHealth}/></div></section>
     {character.unspentStatPoints>0&&<div className="live-banner level-up-broadcast"><div className="broadcast-kicker">SYSTEM OVERRIDE</div><strong>LEVEL UP!</strong><span>You have {character.unspentStatPoints} stat point{character.unspentStatPoints===1?'':'s'} to spend.</span></div>}
     <nav className="tabs"><button className={`button ${tab==='crawler'?'primary':''}`} onClick={()=>setTab('crawler')}><Users size={16}/>Crawler</button><button className={`button ${tab==='party'?'primary':''}`} onClick={()=>void openParty()}><Users size={16}/>Party</button><button className={`button ${tab==='trades'?'primary':''}`} onClick={()=>void openTrades()}><ArrowLeftRight size={16}/>Trades{trades.filter(t=>t.status==='pending'&&t.recipientCharacterId===character.id).length>0&&<span className="tab-badge">{trades.filter(t=>t.status==='pending'&&t.recipientCharacterId===character.id).length}</span>}</button><button className={`button ${tab==='inventory'?'primary':''}`} onClick={()=>setTab('inventory')}><Package size={16}/>Inventory</button><button className={`button ${tab==='loot'?'primary':''}`} onClick={()=>setTab('loot')}><Gift size={16}/>Loot</button><button className={`button ${tab==='achievements'?'primary':''}`} onClick={()=>setTab('achievements')}><Trophy size={16}/>Achievements</button></nav>
@@ -532,7 +559,7 @@ function Player({gameId,character,refresh}:{gameId:string;character:Character;re
     </section>}
     {tab==='loot'&&<section className="panel pad loot-vault-panel">
       <div className="broadcast-section-heading"><div><div className="broadcast-kicker">DUNGEON REWARD VAULT</div><h3>Unopened Loot Boxes</h3></div><span className="broadcast-light">LIVE</span></div>
-      {lootReveal&&<div className={`broadcast-reveal loot-broadcast rarity-broadcast-${lootReveal.rarity}`}>
+      {lootReveal&&lootStage==='idle'&&<div className={`broadcast-reveal loot-broadcast rarity-broadcast-${lootReveal.rarity}`}>
         <div className="broadcast-scanline"/>
         <div className="broadcast-alert-row"><span>REWARD DISPENSED</span><span>{lootReveal.rarity==='B'?'BRONZE':lootReveal.rarity==='S'?'SILVER':'GOLD'}</span></div>
         <div className="loot-broadcast-icon">🎁</div>
