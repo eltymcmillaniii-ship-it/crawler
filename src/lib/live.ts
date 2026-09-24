@@ -1,6 +1,6 @@
 import type { RealtimeChannel, User } from '@supabase/supabase-js'
 import { supabase } from './supabase'
-import type { Character, DungeonVerdict, GearSlot, Item, LootOpenResult, Rarity, Role, TradeRecord, TradeTarget, TradeableItem } from './types'
+import type { Character, DungeonVerdict, GearSlot, Item, LootBoxType, LootOpenResult, Rarity, Role, TradeRecord, TradeTarget, TradeableItem } from './types'
 
 export type GameSummary = {
   id: string
@@ -133,6 +133,33 @@ export async function updateGameSettings(gameId: string, name: string, floorNumb
     p_floor_theme: floorTheme.trim(),
   })
   if (error) throw error
+}
+
+export async function grantQuickLoot(
+  gameId: string,
+  characterIds: string[],
+  boxType: LootBoxType,
+  rarity?: Rarity,
+): Promise<string[]> {
+  const sb = client()
+  const { data, error } = await sb.rpc('gm_quick_loot', {
+    p_game_id: gameId,
+    p_character_ids: characterIds,
+    p_box_type: boxType,
+    p_rarity: rarity ?? null,
+  })
+  if (error) throw error
+  return Array.isArray(data) ? data.map(String) : []
+}
+
+export async function undoQuickLoot(gameId: string, boxIds: string[]): Promise<number> {
+  const sb = client()
+  const { data, error } = await sb.rpc('gm_undo_quick_loot', {
+    p_game_id: gameId,
+    p_box_ids: boxIds,
+  })
+  if (error) throw error
+  return Number(data ?? 0)
 }
 
 export async function renameCharacter(characterId: string, name: string) {
@@ -299,7 +326,12 @@ export async function loadCharacters(gameId: string): Promise<Character[]> {
       perks: Array.isArray(row.perks) ? row.perks : [],
       gear,
       inventory,
-      boxes: (boxesRes.data ?? []).filter((b: any) => b.character_id === row.id).map((b: any) => ({ id:String(b.id), name:String(b.name), rarity:normalizeRarity(String(b.rarity)) })),
+      boxes: (boxesRes.data ?? []).filter((b: any) => b.character_id === row.id).map((b: any) => ({
+        id:String(b.id),
+        name:String(b.name),
+        rarity:normalizeRarity(String(b.rarity)),
+        boxType:(['standard','healing','mystery','boss'].includes(String(b.box_type)) ? String(b.box_type) : 'standard') as LootBoxType,
+      })),
       achievements: (achievementsRes.data ?? []).filter((a: any) => a.character_id === row.id).map((a: any) => ({ id:String(a.id), name:String(a.title), commentary:String(a.commentary ?? '') })),
     }
   })
