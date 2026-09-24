@@ -99,7 +99,7 @@ export function EncounterDisplay({ token }: { token: string }) {
 
     {!enemy ? <section className="display-idle">
       <div className="display-kicker">DUNGEON NETWORK // PLAYER DISPLAY</div>
-      <div className="display-idle-mark"><></div>
+      <div className="display-idle-mark" aria-hidden="true">&#9670;</div>
       <h1>AWAITING HOSTILE</h1>
       <p>The Dungeon will decide when you are allowed to be concerned.</p>
       {error && <div className="display-error">{error}</div>}
