@@ -1,4 +1,5 @@
 export type Rarity = 'B' | 'S' | 'G'
+export type LootBoxType = 'standard' | 'healing' | 'mystery' | 'boss'
 export type Role = 'gm' | 'player'
 export type GearSlot = 'Head' | 'Shirt' | 'Pants' | 'Hands' | 'Feet' | 'Weapon 1' | 'Weapon 2' | 'Accessory 1' | 'Accessory 2'
 
@@ -35,7 +36,7 @@ export type Character = {
   perks: string[]
   gear: Record<GearSlot, Item | null>
   inventory: Item[]
-  boxes: { id: string; name: string; rarity: Rarity }[]
+  boxes: { id: string; name: string; rarity: Rarity; boxType: LootBoxType }[]
   achievements: { id: string; name: string; commentary: string }[]
 }
 
