@@ -7,12 +7,17 @@ Deno.serve(async(req)=>{
   try{
     // Capability authentication: this unguessable per-game token grants only
     // the presentation fields below. It cannot read the encounter table or mutate it.
-    const {token,knownRevealId,knownEnemyId}=await req.json()
+    const {token,knownRevealId,knownEnemyId,knownDiceRollId}=await req.json()
     if(typeof token!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token))return reply({error:'Invalid player screen link'},404)
     const admin=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,{auth:{persistSession:false}})
-    const {data:display,error}=await admin.from('encounter_displays').select('game_id,enemy_id,reveal_id,idle_image_path').eq('display_token',token).maybeSingle()
+    const {data:display,error}=await admin.from('encounter_displays').select('game_id,enemy_id,reveal_id,idle_image_path,d20_roll,d20_roll_id').eq('display_token',token).maybeSingle()
     if(error)throw error
     if(!display)return reply({error:'This player screen link is no longer active.'},404)
+    const diceRollId=typeof display.d20_roll_id==='string'?display.d20_roll_id:''
+    const hasKnownDice=typeof knownDiceRollId==='string'&&knownDiceRollId.length>0
+    const diceRoll=hasKnownDice&&diceRollId&&diceRollId!==knownDiceRollId&&Number.isInteger(display.d20_roll)&&display.d20_roll>=1&&display.d20_roll<=20
+      ? {id:diceRollId,value:Number(display.d20_roll)}
+      : undefined
     async function idleImageUrl(){
       if(!display.idle_image_path?.startsWith(`${display.game_id}/display/`))return null
       const {data:idleImage,error:idleImageError}=await admin.storage.from('enemy-art').createSignedUrl(display.idle_image_path,3600)
@@ -20,14 +25,14 @@ Deno.serve(async(req)=>{
       return idleImage.signedUrl
     }
     if(!display.enemy_id){
-      if(knownRevealId===display.reveal_id && !knownEnemyId)return reply({unchanged:true})
-      return reply({revealId:display.reveal_id,enemy:null,idleImageUrl:await idleImageUrl()})
+      if(knownRevealId===display.reveal_id && !knownEnemyId&&!diceRoll)return reply({unchanged:true,diceRollId})
+      return reply({revealId:display.reveal_id,enemy:null,idleImageUrl:await idleImageUrl(),diceRollId,diceRoll})
     }
     const {data:enemy,error:enemyError}=await admin.from('encounter_enemies').select('id,name,level,enemy_kind,entrance,image_path,image_status,current_hp').eq('id',display.enemy_id).eq('game_id',display.game_id).maybeSingle()
     if(enemyError)throw enemyError
     if(!enemy||enemy.image_status!=='ready'||!enemy.image_path?.startsWith(`${display.game_id}/${enemy.id}/`))return reply({revealId:display.reveal_id,enemy:null,idleImageUrl:await idleImageUrl()})
     const defeated=Number(enemy.current_hp)<=0
-    if(!defeated && knownRevealId===display.reveal_id && knownEnemyId===enemy.id)return reply({unchanged:true})
+    if(!defeated && knownRevealId===display.reveal_id && knownEnemyId===enemy.id)return reply({unchanged:true,diceRollId,diceRoll})
     const {data:image,error:imageError}=await admin.storage.from('enemy-art').createSignedUrl(enemy.image_path,3600)
     if(imageError)throw imageError
     if(defeated){
@@ -36,6 +41,6 @@ Deno.serve(async(req)=>{
         .eq('game_id',display.game_id).eq('enemy_id',enemy.id)
       if(clearError)throw clearError
     }
-    return reply({revealId:display.reveal_id,idleImageUrl:await idleImageUrl(),enemy:{id:enemy.id,name:enemy.name,level:enemy.level,kind:enemy.enemy_kind,entrance:enemy.entrance,imageUrl:image.signedUrl,defeated}})
+    return reply({revealId:display.reveal_id,idleImageUrl:await idleImageUrl(),diceRollId,diceRoll,enemy:{id:enemy.id,name:enemy.name,level:enemy.level,kind:enemy.enemy_kind,entrance:enemy.entrance,imageUrl:image.signedUrl,defeated}})
   }catch(e){console.error('Display failed',e instanceof Error?e.message:e);return reply({error:'Player screen is reconnecting. Please wait.'},503)}
 })
