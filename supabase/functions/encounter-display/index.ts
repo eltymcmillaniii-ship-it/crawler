@@ -7,7 +7,7 @@ Deno.serve(async(req)=>{
   try{
     // Capability authentication: this unguessable per-game token grants only
     // the presentation fields below. It cannot read the encounter table or mutate it.
-    const {token,knownRevealId,knownEnemyId,knownDefeated}=await req.json()
+    const {token,knownRevealId,knownEnemyId}=await req.json()
     if(typeof token!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token))return reply({error:'Invalid player screen link'},404)
     const admin=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,{auth:{persistSession:false}})
     const {data:display,error}=await admin.from('encounter_displays').select('game_id,enemy_id,reveal_id,idle_image_path').eq('display_token',token).maybeSingle()
@@ -27,9 +27,15 @@ Deno.serve(async(req)=>{
     if(enemyError)throw enemyError
     if(!enemy||enemy.image_status!=='ready'||!enemy.image_path?.startsWith(`${display.game_id}/${enemy.id}/`))return reply({revealId:display.reveal_id,enemy:null,idleImageUrl:await idleImageUrl()})
     const defeated=Number(enemy.current_hp)<=0
-    if(knownRevealId===display.reveal_id && knownEnemyId===enemy.id && knownDefeated===defeated)return reply({unchanged:true})
+    if(!defeated && knownRevealId===display.reveal_id && knownEnemyId===enemy.id)return reply({unchanged:true})
     const {data:image,error:imageError}=await admin.storage.from('enemy-art').createSignedUrl(enemy.image_path,3600)
     if(imageError)throw imageError
+    if(defeated){
+      const {error:clearError}=await admin.from('encounter_displays')
+        .update({enemy_id:null,reveal_id:crypto.randomUUID()})
+        .eq('game_id',display.game_id).eq('enemy_id',enemy.id)
+      if(clearError)throw clearError
+    }
     return reply({revealId:display.reveal_id,idleImageUrl:await idleImageUrl(),enemy:{id:enemy.id,name:enemy.name,level:enemy.level,kind:enemy.enemy_kind,entrance:enemy.entrance,imageUrl:image.signedUrl,defeated}})
   }catch(e){console.error('Display failed',e instanceof Error?e.message:e);return reply({error:'Player screen is reconnecting. Please wait.'},503)}
 })
