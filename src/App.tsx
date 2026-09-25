@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { EncounterPanel } from './EncounterPanel'
 import { EncounterDisplay } from './EncounterDisplay'
-import { ArrowLeftRight, Brain, Gift, Mic, Package, ScrollText, Settings, Sparkles, Square, Trophy, Users } from 'lucide-react'
+import { ArrowLeftRight, Brain, Dices, Gift, Mic, Package, ScrollText, Settings, Sparkles, Square, Trophy, Users } from 'lucide-react'
 import type { Character, DungeonVerdict, GearSlot, LootBoxType, LootOpenResult, Rarity, TradeRecord, TradeTarget, TradeableItem } from './lib/types'
 import { supabase, supabaseConfigured } from './lib/supabase'
 import {
@@ -1305,6 +1305,7 @@ function GM({game,characters,refresh}:{game:GameSummary;characters:Character[];r
   const [floorNumber,setFloorNumber]=useState(game.floorNumber)
   const [floorTheme,setFloorTheme]=useState(game.floorTheme)
   const [settingsBusy,setSettingsBusy]=useState(false)
+  const [d20Busy,setD20Busy]=useState(false)
   const current=characters.find(c=>c.id===selected)||characters[0]
   const currentGearBonuses=current?equippedStatBonuses(current):zeroStatBonuses()
   const currentTotalConstitution=current?current.stats.Constitution+currentGearBonuses.Constitution:0
@@ -1321,6 +1322,21 @@ function GM({game,characters,refresh}:{game:GameSummary;characters:Character[];r
     if(error){setMsg(error.message);return false}
     await refresh()
     return true
+  }
+
+  async function rollD20(){
+    if(!supabase||d20Busy)return
+    setD20Busy(true);setMsg('')
+    try{
+      const {data,error}=await supabase.rpc('gm_roll_d20',{p_game_id:gameId})
+      if(error)throw error
+      const result=Number(data)
+      setMsg(result===20?'D20: NATURAL 20 sent to the player screen.':result===1?'D20: NATURAL 1 sent to the player screen.':`D20: ${result} sent to the player screen.`)
+    }catch(e){
+      setMsg(e instanceof Error?e.message:'Could not roll the D20.')
+    }finally{
+      setD20Busy(false)
+    }
   }
 
   async function grantItem(){
@@ -1435,7 +1451,7 @@ function GM({game,characters,refresh}:{game:GameSummary;characters:Character[];r
     setMsg(`New recovery code for ${character.name}: ${String(data)}`)
   }
   return <>
-    <nav className="tabs"><button className={`button ${tab==='profiles'?'primary':''}`} onClick={()=>setTab('profiles')}><Users size={16}/>Party Profiles</button><button className={`button ${tab==='judge'?'primary':''}`} onClick={()=>setTab('judge')}><Sparkles size={16}/>Dungeon Judge</button><button className={`button ${tab==='story'?'primary':''}`} onClick={()=>setTab('story')}><ScrollText size={16}/>Story Log</button><button className={`button ${tab==='settings'?'primary':''}`} onClick={()=>setTab('settings')}><Settings size={16}/>Game Settings</button></nav>
+    <nav className="tabs"><button className={`button ${tab==='profiles'?'primary':''}`} onClick={()=>setTab('profiles')}><Users size={16}/>Party Profiles</button><button className={`button ${tab==='judge'?'primary':''}`} onClick={()=>setTab('judge')}><Sparkles size={16}/>Dungeon Judge</button><button className={`button ${tab==='story'?'primary':''}`} onClick={()=>setTab('story')}><ScrollText size={16}/>Story Log</button><button className={`button ${tab==='settings'?'primary':''}`} onClick={()=>setTab('settings')}><Settings size={16}/>Game Settings</button><button className="button d20-roll-button" disabled={d20Busy} onClick={()=>void rollD20()}><Dices size={16}/>{d20Busy?'ROLLING…':'ROLL D20'}</button></nav>
     {msg&&<div className="status-message">{msg}</div>}
     {tab==='judge'&&<Judge gameId={gameId} characters={characters} selectedCrawlerId={current?.id??''} refresh={refresh}/>} 
     {tab==='story'&&<StoryLog gameId={gameId} characters={characters}/>}
