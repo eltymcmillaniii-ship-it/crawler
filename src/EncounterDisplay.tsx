@@ -15,6 +15,7 @@ type DisplayResponse = {
   unchanged?: boolean
   revealId?: string
   enemy?: DisplayEnemy | null
+  idleImageUrl?: string | null
   error?: string
 }
 
@@ -24,6 +25,7 @@ export function EncounterDisplay({ token }: { token: string }) {
   const [enemy, setEnemy] = useState<DisplayEnemy | null>(null)
   const [stage, setStage] = useState<RevealStage>('idle')
   const [error, setError] = useState('')
+  const [idleImageUrl, setIdleImageUrl] = useState<string | null>(null)
   const revealId = useRef('')
   const enemyId = useRef('')
   const timers = useRef<number[]>([])
@@ -66,6 +68,7 @@ export function EncounterDisplay({ token }: { token: string }) {
         setError('')
         if (!data || data.unchanged) return
         revealId.current = data.revealId ?? ''
+        setIdleImageUrl(data.idleImageUrl ?? null)
         if (!data.enemy) {
           enemyId.current = ''
           clearTimers()
@@ -98,11 +101,15 @@ export function EncounterDisplay({ token }: { token: string }) {
     <div className="display-vignette" aria-hidden="true" />
 
     {!enemy ? <section className="display-idle">
-      <div className="display-kicker">DUNGEON NETWORK // PLAYER DISPLAY</div>
-      <div className="display-idle-mark" aria-hidden="true">&#9670;</div>
-      <h1>AWAITING HOSTILE</h1>
-      <p>The Dungeon will decide when you are allowed to be concerned.</p>
-      {error && <div className="display-error">{error}</div>}
+      {idleImageUrl && <img className="display-idle-image" src={idleImageUrl} alt="" aria-hidden="true" />}
+      <div className="display-idle-shade" aria-hidden="true" />
+      <div className="display-idle-content">
+        <div className="display-kicker">DUNGEON NETWORK // PLAYER DISPLAY</div>
+        <div className="display-idle-mark" aria-hidden="true">&#9670;</div>
+        <h1>AWAITING HOSTILE</h1>
+        <p>The Dungeon will decide when you are allowed to be concerned.</p>
+        {error && <div className="display-error">{error}</div>}
+      </div>
     </section> : <>
       <img className="enemy-reveal-image" src={enemy.imageUrl} alt={enemy.name} />
       <div className="enemy-reveal-shade" aria-hidden="true" />
