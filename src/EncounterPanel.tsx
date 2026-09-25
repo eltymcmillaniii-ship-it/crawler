@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Copy, Crosshair, ExternalLink, Image, Plus, RefreshCw, Skull, Sparkles, WandSparkles } from 'lucide-react'
+import { Copy, Crosshair, ExternalLink, Image, Plus, RefreshCw, Skull, Sparkles, Trash2, Upload, WandSparkles } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import './encounters.css'
 
@@ -21,7 +21,7 @@ type Enemy = {
   image_path: string | null
 }
 type GenerateResponse = { enemyId?: string; status?: string; error?: string }
-type DisplayRow = { display_token: string; enemy_id: string | null; reveal_id: string }
+type DisplayRow = { display_token: string; enemy_id: string | null; reveal_id: string; idle_image_path: string | null }
 
 function clampLevel(value: string, fallback: number) {
   const number = Number(value)
@@ -50,6 +50,8 @@ export function EncounterPanel({ gameId }: { gameId: string }) {
   const [status, setStatus] = useState('')
   const [display, setDisplay] = useState<DisplayRow | null>(null)
   const [displayBusy, setDisplayBusy] = useState(false)
+  const [waitScreenBusy, setWaitScreenBusy] = useState(false)
+  const waitScreenInput = useRef<HTMLInputElement>(null)
   const locked = useRef(false)
   const request = useRef(0)
   const maxHp = Number(hp)
@@ -82,11 +84,11 @@ export function EncounterPanel({ gameId }: { gameId: string }) {
   const loadDisplay = useCallback(async () => {
     if (!supabase) return
     const { data, error: displayError } = await supabase.from('encounter_displays')
-      .select('display_token,enemy_id,reveal_id').eq('game_id', gameId).maybeSingle()
+      .select('display_token,enemy_id,reveal_id,idle_image_path').eq('game_id', gameId).maybeSingle()
     if (displayError) throw displayError
     if (data) { setDisplay(data as DisplayRow); return }
     const { data: created, error: createError } = await supabase.from('encounter_displays')
-      .insert({ game_id: gameId }).select('display_token,enemy_id,reveal_id').single()
+      .insert({ game_id: gameId }).select('display_token,enemy_id,reveal_id,idle_image_path').single()
     if (createError) throw createError
     setDisplay(created as DisplayRow)
   }, [gameId])
@@ -184,6 +186,56 @@ export function EncounterPanel({ gameId }: { gameId: string }) {
     finally { setDisplayBusy(false) }
   }
 
+  async function uploadWaitScreen(file: File) {
+    if (!supabase || !display || waitScreenBusy) return
+    const allowed = new Map([['image/jpeg','jpg'],['image/png','png'],['image/webp','webp']])
+    const extension = allowed.get(file.type)
+    if (!extension) { setError('Wait screen image must be a JPG, PNG, or WebP file.'); return }
+    if (file.size > 10 * 1024 * 1024) { setError('Wait screen image must be 10 MB or smaller.'); return }
+
+    setWaitScreenBusy(true); setError(''); setStatus('')
+    const previousPath = display.idle_image_path
+    const path = `${gameId}/display/${crypto.randomUUID()}.${extension}`
+    try {
+      const { error: uploadError } = await supabase.storage.from('enemy-art').upload(path, file, {
+        cacheControl: '3600',
+        contentType: file.type,
+        upsert: false,
+      })
+      if (uploadError) throw uploadError
+      const { error: saveError } = await supabase.from('encounter_displays')
+        .update({ idle_image_path: path, reveal_id: crypto.randomUUID() }).eq('game_id', gameId)
+      if (saveError) {
+        await supabase.storage.from('enemy-art').remove([path])
+        throw saveError
+      }
+      await loadDisplay()
+      if (previousPath) void supabase.storage.from('enemy-art').remove([previousPath])
+      setStatus('Custom wait-screen image uploaded.')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not upload the wait-screen image.')
+    } finally {
+      setWaitScreenBusy(false)
+      if (waitScreenInput.current) waitScreenInput.current.value = ''
+    }
+  }
+
+  async function removeWaitScreen() {
+    if (!supabase || !display?.idle_image_path || waitScreenBusy) return
+    const previousPath = display.idle_image_path
+    setWaitScreenBusy(true); setError(''); setStatus('')
+    try {
+      const { error: saveError } = await supabase.from('encounter_displays')
+        .update({ idle_image_path: null, reveal_id: crypto.randomUUID() }).eq('game_id', gameId)
+      if (saveError) throw saveError
+      await loadDisplay()
+      void supabase.storage.from('enemy-art').remove([previousPath])
+      setStatus('Custom wait screen removed.')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not remove the wait-screen image.')
+    } finally { setWaitScreenBusy(false) }
+  }
+
   async function copyPlayerScreen() {
     if (!playerScreenUrl) return
     try { await navigator.clipboard.writeText(playerScreenUrl); setStatus('Player screen link copied.') }
@@ -217,6 +269,9 @@ export function EncounterPanel({ gameId }: { gameId: string }) {
         <div className="mob-forge-screen-actions">
           {playerScreenUrl && <button className="button" type="button" onClick={() => window.open(playerScreenUrl, 'crawler-encounter-display')}><ExternalLink size={15}/>Player Screen</button>}
           {playerScreenUrl && <button className="button" type="button" onClick={() => void copyPlayerScreen()}><Copy size={15}/>Copy Link</button>}
+          <input ref={waitScreenInput} className="wait-screen-file-input" type="file" accept="image/jpeg,image/png,image/webp" onChange={e => { const file=e.target.files?.[0]; if(file) void uploadWaitScreen(file) }}/>
+          <button className="button" type="button" disabled={waitScreenBusy || !display} onClick={() => waitScreenInput.current?.click()}><Upload size={15}/>{display?.idle_image_path ? 'Replace Wait Image' : 'Upload Wait Image'}</button>
+          {display?.idle_image_path && <button className="button" type="button" disabled={waitScreenBusy} onClick={() => void removeWaitScreen()}><Trash2 size={15}/>Remove Wait Image</button>}
         </div>
       </div>
       <div className="forge-toggle-row">
