@@ -34,7 +34,7 @@ Deno.serve(async(req)=>{
       let path: string | null=null
       try {
         const result=await ai.images.generate({model:Deno.env.get('OPENAI_IMAGE_MODEL')||'gpt-image-1.5',n:1,size:'1536x1024',quality:'medium',output_format:'webp',
-          prompt:`Create a cinematic dark fantasy enemy portrait for a sarcastic dungeon survival game show. Wide landscape composition, single clearly recognizable full creature, dramatic rim light and rich detail, uncluttered atmospheric dungeon environment. ${enemy.enemy_kind==='boss'?'Monumental boss scale and terrifying presence.':'Distinctive monster design with darkly comic personality.'} Center the creature with safe margins; no text, typography, numbers, UI, logos or watermarks. No graphic gore. Enemy: ${enemy.name}. Visual design: ${enemy.image_prompt}`})
+          prompt:`Create a cinematic dark fantasy enemy portrait for a sarcastic dungeon survival game show. Wide landscape composition, single clearly recognizable full creature, dramatic rim light and rich detail, uncluttered atmospheric dungeon environment. ${enemy.enemy_kind==='boss'?'Monumental boss scale and terrifying presence.':'Distinctive monster design with darkly comic personality.'} Center the creature with safe margins. Keep the entire head, horns, ears, crown, antlers, and top silhouette fully inside the frame with generous headroom; never crop the head. No text, typography, numbers, UI, logos or watermarks. No graphic gore. Enemy: ${enemy.name}. Visual design: ${enemy.image_prompt}`})
         const encoded=result.data?.[0]?.b64_json
         if(!encoded)throw new Error('Image service returned no image. Try again.')
         const bytes=Uint8Array.from(atob(encoded),c=>c.charCodeAt(0))

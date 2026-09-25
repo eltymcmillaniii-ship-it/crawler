@@ -10,11 +10,19 @@ Deno.serve(async(req)=>{
     const {token,knownRevealId,knownEnemyId}=await req.json()
     if(typeof token!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token))return reply({error:'Invalid player screen link'},404)
     const admin=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,{auth:{persistSession:false}})
-    const {data:display,error}=await admin.from('encounter_displays').select('game_id,enemy_id,reveal_id').eq('display_token',token).maybeSingle()
+    const {data:display,error}=await admin.from('encounter_displays').select('game_id,enemy_id,reveal_id,idle_image_path').eq('display_token',token).maybeSingle()
     if(error)throw error
     if(!display)return reply({error:'This player screen link is no longer active.'},404)
     if(knownRevealId===display.reveal_id && knownEnemyId===display.enemy_id)return reply({unchanged:true})
-    if(!display.enemy_id)return reply({revealId:display.reveal_id,enemy:null})
+    if(!display.enemy_id){
+      let idleImageUrl:string|null=null
+      if(display.idle_image_path?.startsWith(`${display.game_id}/display/`)){
+        const {data:idleImage,error:idleImageError}=await admin.storage.from('enemy-art').createSignedUrl(display.idle_image_path,3600)
+        if(idleImageError)throw idleImageError
+        idleImageUrl=idleImage.signedUrl
+      }
+      return reply({revealId:display.reveal_id,enemy:null,idleImageUrl})
+    }
     const {data:enemy,error:enemyError}=await admin.from('encounter_enemies').select('id,name,level,enemy_kind,entrance,image_path,image_status').eq('id',display.enemy_id).eq('game_id',display.game_id).maybeSingle()
     if(enemyError)throw enemyError
     if(!enemy||enemy.image_status!=='ready'||!enemy.image_path?.startsWith(`${display.game_id}/${enemy.id}/`))return reply({revealId:display.reveal_id,enemy:null})
