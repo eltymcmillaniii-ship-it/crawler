@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { EncounterPanel } from './EncounterPanel'
+import { EncounterDisplay } from './EncounterDisplay'
 import { ArrowLeftRight, Brain, Gift, Mic, Package, ScrollText, Settings, Sparkles, Square, Trophy, Users } from 'lucide-react'
 import type { Character, DungeonVerdict, GearSlot, LootBoxType, LootOpenResult, Rarity, TradeRecord, TradeTarget, TradeableItem } from './lib/types'
 import { supabase, supabaseConfigured } from './lib/supabase'
@@ -1776,7 +1777,7 @@ function Lobby({userId,isAnonymous,accountEmail,games,reload,open}:{userId:strin
   </div>
 }
 
-export default function App(){
+function CrawlerApp(){
   const [userId,setUserId]=useState('')
   const [isAnonymous,setIsAnonymous]=useState(true)
   const [accountEmail,setAccountEmail]=useState('')
@@ -1845,4 +1846,10 @@ export default function App(){
     <div className={`system-strip live-status-${liveStatus}`}><span className="system-dot"/><strong>{liveStatus==='live'?'SYSTEM ONLINE':liveStatus==='connecting'?'CONNECTING':'RECONNECTING'}</strong><span>{liveStatus==='live'?'Live multiplayer connected':'Syncing live game state…'}</span><span className="system-strip-spacer"/><span className="system-floor">FLOOR {game.floorNumber}</span></div>
     {game.role==='gm'?<GM game={game} characters={characters} refresh={()=>refresh(game)}/>:me?!me.setupComplete?<Setup character={me} onDone={()=>refresh(game)}/>:<Player gameId={game.id} character={me} refresh={()=>refresh(game)}/>:<section className="panel pad"><p>Preparing your crawler…</p></section>}
   </div>
+}
+
+
+export default function App(){
+  const displayToken=new URLSearchParams(window.location.search).get('encounter-display')
+  return displayToken?<EncounterDisplay token={displayToken}/>:<CrawlerApp/>
 }
