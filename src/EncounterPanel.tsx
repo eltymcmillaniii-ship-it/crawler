@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Copy, Crosshair, ExternalLink, Image, Plus, RefreshCw, Skull, Sparkles, Trash2, Upload, WandSparkles } from 'lucide-react'
+import { Copy, Crosshair, Dices, ExternalLink, Image, Plus, RefreshCw, Skull, Sparkles, Trash2, Upload, WandSparkles } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import './encounters.css'
 
@@ -189,6 +189,19 @@ export function EncounterPanel({ gameId }: { gameId: string }) {
     finally { setDisplayBusy(false) }
   }
 
+  async function rollD20() {
+    if (!supabase || displayBusy || !display) return
+    setDisplayBusy(true); setError(''); setStatus('')
+    try {
+      const { data, error: rollError } = await supabase.rpc('gm_roll_d20', { p_game_id: gameId })
+      if (rollError) throw rollError
+      const result = Number(data)
+      const label = result === 20 ? 'NATURAL 20' : result === 1 ? 'NATURAL 1' : String(result)
+      setStatus(`D20 rolled: ${label}. Sent to the player screen.`)
+    } catch (e) { setError(e instanceof Error ? e.message : 'Could not roll the D20.') }
+    finally { setDisplayBusy(false) }
+  }
+
   async function uploadWaitScreen(file: File) {
     if (!supabase || !display || waitScreenBusy) return
     const allowed = new Map([['image/jpeg','jpg'],['image/png','png'],['image/webp','webp']])
@@ -272,6 +285,7 @@ export function EncounterPanel({ gameId }: { gameId: string }) {
         <div className="mob-forge-screen-actions">
           {playerScreenUrl && <button className="button" type="button" onClick={() => window.open(playerScreenUrl, 'crawler-encounter-display')}><ExternalLink size={15}/>Player Screen</button>}
           {playerScreenUrl && <button className="button" type="button" onClick={() => void copyPlayerScreen()}><Copy size={15}/>Copy Link</button>}
+          <button className="button d20-roll-button" type="button" disabled={displayBusy || !display} onClick={() => void rollD20()}><Dices size={15}/>ROLL D20</button>
           <input ref={waitScreenInput} className="wait-screen-file-input" type="file" accept="image/jpeg,image/png,image/webp" onChange={e => { const file=e.target.files?.[0]; if(file) void uploadWaitScreen(file) }}/>
           <button className="button" type="button" disabled={waitScreenBusy || !display} onClick={() => waitScreenInput.current?.click()}><Upload size={15}/>{display?.idle_image_path ? 'Replace Wait Image' : 'Upload Wait Image'}</button>
           {display?.idle_image_path && <button className="button" type="button" disabled={waitScreenBusy} onClick={() => void removeWaitScreen()}><Trash2 size={15}/>Remove Wait Image</button>}
