@@ -30,6 +30,7 @@ export function EncounterDisplay({ token }: { token: string }) {
   const revealId = useRef('')
   const enemyId = useRef('')
   const defeated = useRef(false)
+  const defeatInProgress = useRef(false)
   const timers = useRef<number[]>([])
   const mounted = useRef(true)
 
@@ -41,6 +42,7 @@ export function EncounterDisplay({ token }: { token: string }) {
   function play(next: DisplayEnemy) {
     clearTimers()
     defeated.current = false
+    defeatInProgress.current = false
     setEnemy(next)
     setStage('warning')
     timers.current.push(window.setTimeout(() => setStage('scan'), 1050))
@@ -55,7 +57,7 @@ export function EncounterDisplay({ token }: { token: string }) {
     let interval = 0
 
     async function poll(force = false) {
-      if (!supabase || fetching) return
+      if (!supabase || fetching || (defeatInProgress.current && !force)) return
       fetching = true
       try {
         const { data, error: invokeError } = await supabase.functions.invoke<DisplayResponse>('encounter-display', {
@@ -63,7 +65,6 @@ export function EncounterDisplay({ token }: { token: string }) {
             token,
             knownRevealId: force ? '' : revealId.current,
             knownEnemyId: force ? '' : enemyId.current,
-            knownDefeated: force ? null : defeated.current,
           },
         })
         if (!mounted.current) return
@@ -74,8 +75,10 @@ export function EncounterDisplay({ token }: { token: string }) {
         revealId.current = data.revealId ?? ''
         setIdleImageUrl(data.idleImageUrl ?? null)
         if (!data.enemy) {
+          if (defeatInProgress.current && !force) return
           enemyId.current = ''
           defeated.current = false
+          defeatInProgress.current = false
           clearTimers()
           setEnemy(null)
           setStage('idle')
@@ -83,14 +86,20 @@ export function EncounterDisplay({ token }: { token: string }) {
         }
         enemyId.current = data.enemy.id
         if (data.enemy.defeated) {
+          if (defeatInProgress.current) return
           defeated.current = true
+          defeatInProgress.current = true
           clearTimers()
           setEnemy(data.enemy)
           setStage('defeated')
           timers.current.push(window.setTimeout(() => {
-            if (!mounted.current || !defeated.current) return
+            if (!mounted.current || !defeatInProgress.current) return
+            defeated.current = false
+            defeatInProgress.current = false
+            enemyId.current = ''
             setEnemy(null)
             setStage('idle')
+            void poll(true)
           }, 2400))
           return
         }

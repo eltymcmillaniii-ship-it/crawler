@@ -99,7 +99,10 @@ export function EncounterPanel({ gameId }: { gameId: string }) {
     sync()
     void loadDisplay().catch(e => { if (active) setError(e instanceof Error ? e.message : 'Could not create the player display link.') })
     const channel = supabase?.channel(`encounter-${gameId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'encounter_enemies', filter: `game_id=eq.${gameId}` }, sync).subscribe()
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'encounter_enemies', filter: `game_id=eq.${gameId}` }, sync)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'encounter_displays', filter: `game_id=eq.${gameId}` }, () => {
+        void loadDisplay().catch(e => { if (active) setError(e instanceof Error ? e.message : 'Could not refresh the player display state.') })
+      }).subscribe()
     window.addEventListener('focus', sync)
     const interval = window.setInterval(sync, 15000)
     return () => {
