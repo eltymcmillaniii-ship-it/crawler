@@ -260,7 +260,7 @@ export async function useCharacterItem(characterItemId: string): Promise<number>
 
 export async function joinGame(joinCode: string, characterName = 'Unnamed Crawler'): Promise<string> {
   const sb = client()
-  const data = await withRpcSessionRetry(() => sb.rpc('join_game', {
+  const data = await withRpcSessionRetry(async () => await sb.rpc('join_game', {
     p_join_code: joinCode.trim().toUpperCase(),
     p_character_name: characterName.trim() || 'Unnamed Crawler',
   }))
@@ -270,7 +270,7 @@ export async function joinGame(joinCode: string, characterName = 'Unnamed Crawle
 
 export async function recoverCrawler(joinCode: string, recoveryCode: string): Promise<string> {
   const sb = client()
-  const data = await withRpcSessionRetry(() => sb.rpc('recover_crawler', {
+  const data = await withRpcSessionRetry(async () => await sb.rpc('recover_crawler', {
     p_join_code: joinCode.trim().toUpperCase(),
     p_recovery_code: recoveryCode.trim().toUpperCase(),
   }))
