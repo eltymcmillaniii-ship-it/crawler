@@ -9,6 +9,7 @@ type DisplayEnemy = {
   kind: 'mob' | 'boss'
   entrance: string
   imageUrl: string
+  defeated: boolean
 }
 
 type DisplayResponse = {
@@ -19,7 +20,7 @@ type DisplayResponse = {
   error?: string
 }
 
-type RevealStage = 'idle' | 'warning' | 'scan' | 'title' | 'impact' | 'details'
+type RevealStage = 'idle' | 'warning' | 'scan' | 'title' | 'impact' | 'details' | 'defeated'
 
 export function EncounterDisplay({ token }: { token: string }) {
   const [enemy, setEnemy] = useState<DisplayEnemy | null>(null)
@@ -28,6 +29,7 @@ export function EncounterDisplay({ token }: { token: string }) {
   const [idleImageUrl, setIdleImageUrl] = useState<string | null>(null)
   const revealId = useRef('')
   const enemyId = useRef('')
+  const defeated = useRef(false)
   const timers = useRef<number[]>([])
   const mounted = useRef(true)
 
@@ -38,6 +40,7 @@ export function EncounterDisplay({ token }: { token: string }) {
 
   function play(next: DisplayEnemy) {
     clearTimers()
+    defeated.current = false
     setEnemy(next)
     setStage('warning')
     timers.current.push(window.setTimeout(() => setStage('scan'), 1050))
@@ -60,6 +63,7 @@ export function EncounterDisplay({ token }: { token: string }) {
             token,
             knownRevealId: force ? '' : revealId.current,
             knownEnemyId: force ? '' : enemyId.current,
+            knownDefeated: force ? null : defeated.current,
           },
         })
         if (!mounted.current) return
@@ -71,12 +75,25 @@ export function EncounterDisplay({ token }: { token: string }) {
         setIdleImageUrl(data.idleImageUrl ?? null)
         if (!data.enemy) {
           enemyId.current = ''
+          defeated.current = false
           clearTimers()
           setEnemy(null)
           setStage('idle')
           return
         }
         enemyId.current = data.enemy.id
+        if (data.enemy.defeated) {
+          defeated.current = true
+          clearTimers()
+          setEnemy(data.enemy)
+          setStage('defeated')
+          timers.current.push(window.setTimeout(() => {
+            if (!mounted.current || !defeated.current) return
+            setEnemy(null)
+            setStage('idle')
+          }, 2400))
+          return
+        }
         play(data.enemy)
       } catch (e) {
         if (mounted.current) setError(e instanceof Error ? e.message : 'Player screen is reconnecting.')
@@ -135,6 +152,11 @@ export function EncounterDisplay({ token }: { token: string }) {
       </section>
 
       <div className="reveal-impact-flash" aria-hidden="true" />
+
+      <section className="defeated-stamp" aria-live="assertive">
+        <span>DEFEATED</span>
+        <small>ENTITY TERMINATED</small>
+      </section>
 
       <section className="reveal-details-card">
         <div className="reveal-details-meta"><span>{enemy.kind === 'boss' ? 'BOSS' : 'HOSTILE'}</span><strong>LEVEL {enemy.level}</strong></div>
