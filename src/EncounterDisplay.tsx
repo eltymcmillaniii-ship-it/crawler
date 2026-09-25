@@ -12,11 +12,15 @@ type DisplayEnemy = {
   defeated: boolean
 }
 
+type DisplayDiceRoll = { id: string; value: number }
+
 type DisplayResponse = {
   unchanged?: boolean
   revealId?: string
   enemy?: DisplayEnemy | null
   idleImageUrl?: string | null
+  diceRollId?: string
+  diceRoll?: DisplayDiceRoll
   error?: string
 }
 
@@ -27,16 +31,52 @@ export function EncounterDisplay({ token }: { token: string }) {
   const [stage, setStage] = useState<RevealStage>('idle')
   const [error, setError] = useState('')
   const [idleImageUrl, setIdleImageUrl] = useState<string | null>(null)
+  const [diceRoll, setDiceRoll] = useState<DisplayDiceRoll | null>(null)
+  const [diceFace, setDiceFace] = useState(20)
+  const [diceRolling, setDiceRolling] = useState(false)
   const revealId = useRef('')
+  const diceRollId = useRef('')
   const enemyId = useRef('')
   const defeated = useRef(false)
   const defeatInProgress = useRef(false)
   const timers = useRef<number[]>([])
+  const diceTimers = useRef<number[]>([])
+  const diceInterval = useRef<number | null>(null)
   const mounted = useRef(true)
 
   function clearTimers() {
     for (const timer of timers.current) window.clearTimeout(timer)
     timers.current = []
+  }
+
+  function clearDiceTimers() {
+    for (const timer of diceTimers.current) window.clearTimeout(timer)
+    diceTimers.current = []
+    if (diceInterval.current !== null) {
+      window.clearInterval(diceInterval.current)
+      diceInterval.current = null
+    }
+  }
+
+  function playDice(next: DisplayDiceRoll) {
+    clearDiceTimers()
+    setDiceRoll(next)
+    setDiceRolling(true)
+    setDiceFace(1 + Math.floor(Math.random() * 20))
+    diceInterval.current = window.setInterval(() => {
+      setDiceFace(1 + Math.floor(Math.random() * 20))
+    }, 75)
+    diceTimers.current.push(window.setTimeout(() => {
+      if (diceInterval.current !== null) {
+        window.clearInterval(diceInterval.current)
+        diceInterval.current = null
+      }
+      setDiceFace(next.value)
+      setDiceRolling(false)
+    }, 1450))
+    diceTimers.current.push(window.setTimeout(() => {
+      setDiceRoll(null)
+    }, 3550))
   }
 
   function play(next: DisplayEnemy) {
@@ -65,12 +105,15 @@ export function EncounterDisplay({ token }: { token: string }) {
             token,
             knownRevealId: force ? '' : revealId.current,
             knownEnemyId: force ? '' : enemyId.current,
+            knownDiceRollId: diceRollId.current,
           },
         })
         if (!mounted.current) return
         if (invokeError) throw invokeError
         if (data?.error) throw new Error(data.error)
         setError('')
+        if (data?.diceRollId) diceRollId.current = data.diceRollId
+        if (data?.diceRoll && data.diceRoll.id !== diceRoll?.id) playDice(data.diceRoll)
         if (!data || data.unchanged) return
         revealId.current = data.revealId ?? ''
         setIdleImageUrl(data.idleImageUrl ?? null)
@@ -119,6 +162,7 @@ export function EncounterDisplay({ token }: { token: string }) {
       window.clearInterval(interval)
       window.clearInterval(refreshSignedUrl)
       clearTimers()
+      clearDiceTimers()
     }
   }, [token])
 
@@ -173,6 +217,27 @@ export function EncounterDisplay({ token }: { token: string }) {
         {enemy.entrance && <p>{enemy.entrance}</p>}
       </section>
     </>}
+
+    {diceRoll && <section className={`d20-overlay ${diceRolling ? 'is-rolling' : 'is-landed'} ${!diceRolling && diceRoll.value === 20 ? 'is-natural-20' : ''} ${!diceRolling && diceRoll.value === 1 ? 'is-natural-1' : ''}`} aria-live="assertive" aria-label={diceRolling ? 'Rolling a D20' : `D20 result ${diceRoll.value}`}>
+      <div className="d20-kicker">DUNGEON DICE // D20</div>
+      <div className="d20-stage" aria-hidden="true">
+        <div className="d20-die">
+          <span className="d20-facet facet-a" />
+          <span className="d20-facet facet-b" />
+          <span className="d20-facet facet-c" />
+          <strong>{diceFace}</strong>
+        </div>
+      </div>
+      <div className="d20-result-copy">
+        {diceRolling
+          ? <><span>ROLLING...</span><small>THE DUNGEON IS CONSULTING MATH</small></>
+          : diceRoll.value === 20
+            ? <><span>NATURAL 20</span><small>THE DUNGEON RESPECTS THIS. TEMPORARILY.</small></>
+            : diceRoll.value === 1
+              ? <><span>NATURAL 1</span><small>INCREDIBLE. YOU FOUND THE FLOOR.</small></>
+              : <><span>RESULT: {diceRoll.value}</span><small>D20 ROLL COMPLETE</small></>}
+      </div>
+    </section>}
 
     {error && enemy && <div className="display-reconnect">RECONNECTING TO DUNGEON NETWORK...</div>}
   </main>
