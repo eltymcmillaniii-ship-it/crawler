@@ -33,15 +33,72 @@ function client() {
   return supabase
 }
 
+async function waitForActiveSession(expectedUserId?: string): Promise<User> {
+  const sb = client()
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const { data, error } = await sb.auth.getSession()
+    if (error) throw error
+    const session = data.session
+    if (session?.user && session.access_token && (!expectedUserId || session.user.id === expectedUserId)) {
+      return session.user
+    }
+    if (attempt < 7) await new Promise(resolve => window.setTimeout(resolve, 100 + attempt * 50))
+  }
+  throw new Error('The player session is still starting. Please try Join again.')
+}
+
 export async function ensureAnonymousUser(): Promise<User> {
   const sb = client()
   const { data: sessionData, error: sessionError } = await sb.auth.getSession()
   if (sessionError) throw sessionError
-  if (sessionData.session?.user) return sessionData.session.user
+  if (sessionData.session?.user && sessionData.session.access_token) return sessionData.session.user
+
   const { data, error } = await sb.auth.signInAnonymously()
   if (error) throw error
-  if (!data.user) throw new Error('Anonymous sign-in did not return a user.')
-  return data.user
+  if (!data.user || !data.session?.access_token) throw new Error('Anonymous sign-in did not return an active session.')
+
+  // Mobile Safari can briefly return from signInAnonymously before the new session
+  // is observable by subsequent Data API calls. Confirm it is active before continuing.
+  return await waitForActiveSession(data.user.id)
+}
+
+async function ensureRpcSession(): Promise<User> {
+  const sb = client()
+  const { data, error } = await sb.auth.getSession()
+  if (error) throw error
+  if (data.session?.user && data.session.access_token) return data.session.user
+  return await ensureAnonymousUser()
+}
+
+function isAuthRaceError(error: unknown) {
+  const value = error as { code?: string; status?: number; message?: string } | null
+  return value?.code === '42501'
+    || value?.status === 401
+    || /permission denied for function/i.test(value?.message ?? '')
+}
+
+async function withRpcSessionRetry<T>(run: () => Promise<{ data: T | null; error: any }>): Promise<T | null> {
+  const sb = client()
+  await ensureRpcSession()
+
+  let result = await run()
+  if (!result.error || !isAuthRaceError(result.error)) {
+    if (result.error) throw result.error
+    return result.data
+  }
+
+  // One retry after explicitly re-reading/refreshing auth prevents a transient
+  // anonymous-login race from surfacing as "permission denied" on mobile.
+  const { data: refreshed, error: refreshError } = await sb.auth.refreshSession()
+  if (refreshError || !refreshed.session?.access_token) {
+    await ensureAnonymousUser()
+  } else {
+    await waitForActiveSession(refreshed.session.user.id)
+  }
+
+  result = await run()
+  if (result.error) throw result.error
+  return result.data
 }
 
 export async function createGmLogin(email: string, password: string): Promise<User> {
@@ -203,22 +260,20 @@ export async function useCharacterItem(characterItemId: string): Promise<number>
 
 export async function joinGame(joinCode: string, characterName = 'Unnamed Crawler'): Promise<string> {
   const sb = client()
-  const { data, error } = await sb.rpc('join_game', {
+  const data = await withRpcSessionRetry(async () => await sb.rpc('join_game', {
     p_join_code: joinCode.trim().toUpperCase(),
     p_character_name: characterName.trim() || 'Unnamed Crawler',
-  })
-  if (error) throw error
+  }))
   if (!data) throw new Error('Joining the game did not return a character ID.')
   return String(data)
 }
 
 export async function recoverCrawler(joinCode: string, recoveryCode: string): Promise<string> {
   const sb = client()
-  const { data, error } = await sb.rpc('recover_crawler', {
+  const data = await withRpcSessionRetry(async () => await sb.rpc('recover_crawler', {
     p_join_code: joinCode.trim().toUpperCase(),
     p_recovery_code: recoveryCode.trim().toUpperCase(),
-  })
-  if (error) throw error
+  }))
   if (!data) throw new Error('Crawler recovery did not return a character ID.')
   return String(data)
 }
